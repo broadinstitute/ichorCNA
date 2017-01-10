@@ -6,7 +6,7 @@ ichorCNA is a tool for estimating the fraction of tumor in cell-free DNA from ul
 **Justin Rhoades** <rhoades@broadinstitute.org>  
 **Samuel Freeman** <sfreeman@broadinstitute.org>  
 *Blood Biopsy Group, Cancer Program*  
-The Broad Institute of Harvard and MIT  
+Broad Institute of MIT and Harvard  
 Dana-Farber Cancer Institute  
 Koch Institute for integrative cancer research at MIT  
 
@@ -50,7 +50,7 @@ Here is a demo script to run ichorCNA on some example data
 ichorCNA is developed and maintained by Gavin Ha (<gavinha@broadinstitute.org>), Justin Rhoades (<rhoades@broadinstitute.org>), and Sam Freeman (<sfreeman@broadinstitute.org>).  
 
 This work was done in collaboration between  
-- **Blood Biopsy Group** at The Broad Institute of Harvard and MIT
+- **Blood Biopsy Group** at the Broad Institute of MIT and Harvard
 - Laboratory of **Matthew Meyerson**, Medical Oncology, Dana-Farber Cancer Institute
 - Laboratory of **J. Christopher Love**, Koch Institute for integrative cancer research at MIT
 - Laboratory of **Gad Getz**, Cancer Program, Broad Institute
