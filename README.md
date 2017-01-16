@@ -28,16 +28,28 @@ The analysis workflow consists of 3 major tasks:
 1. Checkout the latest release of ichorCNA from GitHub  
   ```
   
-  git checkout git@github.com:broadinstitute/ichorCNA.git  
+  git clone git@github.com:broadinstitute/ichorCNA.git  
   
   ```  
-2. Install the ichorCNA R package.  This should also install all necessary dependencies, including HMMcopy R package 
+2. Install R dependencies (in R)
   ```
-  
+  ## install from CRAN
+  install.packages("plyr") # version > 1.8.4
+  ## install packages from
+  source("https://bioconductor.org/biocLite.R")
+  biocLite("HMMcopy") # version >= 1.14.0
+  biocLite("GenomeInfoDb") # version >= 1.8.7
+  biocLite("quantsmooth") # version >= 1.38.0
+  ```
+
+3. Install the ichorCNA R package.   
+  ```
+  ## from the command line where ichorCNA github was cloned.
   R CMD INSTALL ichorCNA  
   
   ```  
-3. Install the HMMcopy suite from <http://compbio.bccrc.ca/software/hmmcopy/>
+4. Install the HMMcopy suite from <http://compbio.bccrc.ca/software/hmmcopy/>  
+Please follow instructions on the HMMcopy website.
 
 
 ## Usage
