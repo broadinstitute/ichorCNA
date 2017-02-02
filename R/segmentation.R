@@ -189,7 +189,6 @@ getDefaultParameters <- function(x, ct = 0:5, ct.sc = NULL, ploidy = 2, e = 0.99
 
 
 segmentData <- function(dataGR, states, convergedParams){
-  require(plyr)
   if (sum(convergedParams$param$ct == 0) ==0){
     names <- c("HETD", "NEUT", "GAIN", "AMP", "HLAMP", paste0(rep("HLAMP", 8), 2:9))
   }else{
