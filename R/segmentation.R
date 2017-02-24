@@ -10,8 +10,9 @@
 # description: Hidden Markov model (HMM) to analyze Ultra-low pass whole genome sequencing (ULP-WGS) data.
 # This script is the main script to run the HMM.
 
-HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL, chrTrain = c(1:22), maxiter = 50,
-    estimateNormal = TRUE, estimatePloidy = TRUE, estimatePrecision = TRUE, estimateSubclone = TRUE, estimateTransition = TRUE,
+HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL, 
+    chrTrain = c(1:22), maxiter = 50, estimateNormal = TRUE, estimatePloidy = TRUE, 
+    estimatePrecision = TRUE, estimateSubclone = TRUE, estimateTransition = TRUE,
     estimateInitDist = TRUE, logTransform = FALSE, verbose = TRUE) {
   chr <- space(x[[1]])
 	# setup columns for multiple samples #
@@ -44,8 +45,9 @@ HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL, chrT
 	#}
 	####### RUN EM ##########
   convergedParams <- runEM(dataMat, chr, chrInd, param, maxiter, 
-                           verbose, estimateNormal = estimateNormal, estimatePloidy = estimatePloidy, estimateSubclone = estimateSubclone,
-                           estimatePrecision = estimatePrecision, estimateTransition = estimateTransition, estimateInitDist = estimateInitDist)
+      verbose, estimateNormal = estimateNormal, estimatePloidy = estimatePloidy, 
+      estimateSubclone = estimateSubclone, estimatePrecision = estimatePrecision, 
+      estimateTransition = estimateTransition, estimateInitDist = estimateInitDist)
   # Calculate likelihood using converged params
  # S <- param$numberSamples
  # K <- length(param$ct)
@@ -121,7 +123,12 @@ getTransitionMatrix <- function(K, e, strength){
   return(list(A=A, dirPrior=dirPrior))
 }
 
-getDefaultParameters <- function(x, ct = 0:5, ct.sc = NULL, ploidy = 2, e = 0.9999999, e.sameState = 10, strength = 10000000){
+getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9999999, e.sameState = 10, strength = 10000000, includeHOMD = FALSE){
+  if (includeHOMD){
+    ct <- 0:maxCN
+  }else{
+    ct <- 1:maxCN
+  }
 	param <- list(
 		strength = strength, e = e,
 		ct = c(ct, ct.sc),
@@ -151,7 +158,18 @@ getDefaultParameters <- function(x, ct = 0:5, ct.sc = NULL, ploidy = 2, e = 0.99
 	#param$lambda[param$ct == 4] <- 100 
 	param$lambda[which.max(param$ct)] <- 50 #highest CN
 	param$lambda[param$ct == 0] <- 1 #HOMD
-  
+	
+	if (!is.null(dim(x))){ # multiple samples (columns)
+	  ## TODO ##
+	}else{ # only 1 sample
+    logR.var <- 1 / ((apply(x, 2, sd, na.rm = TRUE) / sqrt(length(param$ct))) ^ 2)
+    param$lambda <- rep(logR.var, length(param$ct))
+    param$lambda[param$ct %in% c(2)] <- logR.var 
+    param$lambda[param$ct %in% c(1,3)] <- logR.var 
+    param$lambda[param$ct >= 4] <- logR.var / 5
+    param$lambda[param$ct == max(param$ct)] <- logR.var / 15
+    param$lambda[param$ct.sc.status] <- logR.var / 10
+  }
   # define joint copy number states #
   S <- param$numberSamples
   param$jointCNstates <- expand.grid(rep(list(param$ct), S))
@@ -177,7 +195,17 @@ getDefaultParameters <- function(x, ct = 0:5, ct.sc = NULL, ploidy = 2, e = 0.99
   txn$A <- normalize(txn$A)
 	param$A <- txn$A
 	param$dirPrior <- txn$A * strength[1] 
+  param$A[, param$ct.sc.status] <- param$A[, param$ct.sc.status] / 10
+  param$A <- normalize(param$A)
+  param$dirPrior[, param$ct.sc.status] <- param$dirPrior[, param$ct.sc.status] / 10
   
+  if (includeHOMD){
+    K <- length(param$ct)
+    param$A[1, 2:K] <- param$A[1, 2:K] * 1e-5; param$A[2:K, 1] <- param$A[2:K, 1] * 1e-5;
+    param$A[1, 1] <- param$A[1, 1] * 1e-5
+    param$A <- normalize(param$A); param$dirPrior <- param$A * param$strength
+  }
+
   param$kappa <- rep(75, K ^ S)
   param$kappa[cnStateDiff == 0] <- param$kappa[cnStateDiff == 0] + 125
 	param$kappa[cnStateDiff >=3] <- param$kappa[cnStateDiff >=3] - 50

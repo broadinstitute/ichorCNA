@@ -67,20 +67,19 @@ setGenomeStyle <- function(x, genomeStyle = "NCBI", species = "Homo_sapiens"){
     return(x)
 }
 
-loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, map = NULL, centromere = NULL, flankLength = 100000, targetedSequences = NULL, genomeStyle = "NCBI"){
+loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, map = NULL, centromere = NULL, flankLength = 100000, targetedSequences = NULL, genomeStyle = "NCBI", applyCorrection = TRUE, mapScoreThres = 0.9, chrNormalize = c(1:22, "X", "Y"), fracReadsInChrYForMale = 0.002, useChrY = TRUE){
 	require(HMMcopy)
 	require(GenomeInfoDb)
+	counts.raw <- counts
 	names(counts) <- setGenomeStyle(names(counts), genomeStyle)
 	counts <- keepChr(counts, chrs)
 	if (!is.null(gc)){ 
 		names(gc) <- setGenomeStyle(names(gc), genomeStyle)
-		gc <- keepChr(gc, chrs)
-		counts$gc <- gc$value
+		counts$gc <- keepChr(gc, chrs)$value
 	}
 	if (!is.null(map)){ 
 		names(map) <- setGenomeStyle(names(map), genomeStyle)
-		map <- keepChr(map, chrs)
-		counts$map <- map$value
+		counts$map <- keepChr(map, chrs)$value
 	}
 	colnames(counts)[1] <- c("reads")
 	
@@ -93,9 +92,17 @@ loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, m
 		countsExons <- filterByTargetedSequences(counts, targetedSequences)
 		counts <- counts[countsExons$ix,]
 	}
-	## filter 0 read bins ##
-	#counts <- counts[counts$reads > 0, ]
-	return(counts)
+	gender <- NULL
+	if (applyCorrection){
+	## correct read counts ##
+    counts <- correctReadCounts(counts, chrNormalize = chrNormalize)
+    ## filter bins by mappability
+    counts <- filterByMappabilityScore(counts, map=map, mapScoreThres = mapScoreThres)
+    ## get gender ##
+    gender <- getGender(counts.raw, counts, gc, map, fracReadsInChrYForMale = fracReadsInChrYForMale, useChrY = useChrY,
+                        centromere=centromere, flankLength=flankLength, targetedSequences = targetedSequences)
+  }
+  return(list(counts = counts, gender = gender))
 }
 
 filterByMappabilityScore <- function(counts, map, mapScoreThres = 0.9){
@@ -133,8 +140,8 @@ getGender <- function(rawReads, normReads, gc, map, fracReadsInChrYForMale = 0.0
 	if (sum(chrXInd) > 1){ ## if no X 
 		chrXMedian <- median(normReads[chrXInd, ]$copy, na.rm = TRUE)
 		# proportion of reads in chrY #
-		tumY <- loadReadCountsFromWig(rawReads, chrs="Y", gc=gc, map=map, 
-				centromere=centromere, flankLength=flankLength, targetedSequences=targetedSequences)	
+		tumY <- loadReadCountsFromWig(rawReads, chrs="Y", gc=gc, map=map, applyCorrection = FALSE,
+				centromere=centromere, flankLength=flankLength, targetedSequences=targetedSequences)$counts
 		chrYCov <- sum(tumY$reads) / sum(rawReads$value)
 		if (chrXMedian < -0.5){
 			if (useChrY && (chrYCov < fracReadsInChrYForMale)){ #trumps chrX if using chrY
@@ -153,6 +160,42 @@ getGender <- function(rawReads, normReads, gc, map, fracReadsInChrYForMale = 0.0
 	return(list(gender=gender, chrYCovRatio=chrYCov, chrXMedian=chrXMedian))
 }
 	
+	
+normalizeByPanelOrMatchedNormal <- function(tumour_copy, chrs = c(1:22, "X", "Y"), 
+      normal_panel = NULL, normal_copy = NULL, gender = "female", normalizeMaleX = FALSE){
+ 	### COMPUTE LOG RATIO FROM MATCHED NORMAL OR PANEL AND HANDLE CHRX ###
+	## NO PANEL
+	# matched normal but NO panel, then just normalize by matched normal (WES)
+	## WHY DO WE NOT NORMALIZE BY NORMAL WITH PANEL? ##
+	chrXInd <- tumour_copy$space == "X"
+	chrXMedian <- median(tumour_copy[chrXInd, ]$copy, na.rm = TRUE)
+	if (!is.null(normal_copy) && is.null(normal_panel)){
+			message("Normalizing Tumour by Normal")
+			tumour_copy$copy <- tumour_copy$copy - normal_copy$copy
+			rm(normal_copy)
+	}
+	# matched normal and panel and male, then compute normalized chrX median (WES)
+	if (!is.null(normal_copy) && !is.null(normal_panel) && gender=="male"){
+			message("Normalizing by matched normal for ChrX")
+			chrX.MNnorm <- tumour_copy$copy[chrXInd] - normal_copy$copy[chrXInd]
+			chrXMedian.MNnorm <- median(chrX.MNnorm, na.rm = TRUE)
+	}
+	# if male, then just normalize chrX to median (ULP and WES)
+	if (is.null(normal_copy) && gender=="male" && !gender.mismatch && normalizeMaleX){
+			tumour_copy$copy[chrXInd] <- tumour_copy$copy[chrXInd] - chrXMedian
+	}
+	# PANEL, then normalize by panel instead of matched normal (ULP and WES)
+	if (!is.null(normal_panel)){
+		panel <- readRDS(normal_panel) ## load in IRanges object
+		panel <- keepChr(panel, chr = chrs)
+		tumour_copy$copy <- tumour_copy$copy - panel$Median
+		# if male, then shift chrX by +chrXMedian.MNnorm
+		if (gender == "male" && exists("chrXMedian.MNnorm")){
+			tumour_copy$copy[chrXInd] <- tumour_copy$copy[chrXInd] + chrXMedian.MNnorm
+		}
+	}
+	return(tumour_copy)
+}
 
 ##################################################
 ###### FUNCTION TO CORRECT GC/MAP BIASES ########
