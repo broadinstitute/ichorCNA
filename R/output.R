@@ -14,7 +14,7 @@
 ###### FUNCTION TO GET OUTPUT HMM RESULTS ########
 ##################################################
 outputHMM <- function(cna, segs, results, patientID = NULL, outDir = "."){
-  names <- c("HOMD", "HETD", "NEUT", "GAIN", "AMP", "HLAMP", "HLAMP2", "HLAMP3", "HLAMP4")
+  names <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP",paste0(rep("HLAMP", 8), 2:25))
 
   S <- results$param$numberSamples
   

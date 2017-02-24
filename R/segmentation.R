@@ -63,7 +63,7 @@ HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL, chrT
   # setup columns for multiple samples #
   segs <- segmentData(x, viterbiResults$states, convergedParams)
   #output$segs <- processSegments(output$segs, chr, start(x), end(x), x$DataToUse)
-  names <- c("HOMD", "HETD", "NEUT", "GAIN", "AMP", "HLAMP", paste0(rep("HLAMP", 8), 2:9))
+  names <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP",paste0(rep("HLAMP", 8), 2:25))
   #if (c(0) %in% param$ct){ #if state 0 HOMD is IN params#
   	#names <- c("HOMD", names)
   	# shift states to start at 2 (HETD)
@@ -190,9 +190,9 @@ getDefaultParameters <- function(x, ct = 0:5, ct.sc = NULL, ploidy = 2, e = 0.99
 
 segmentData <- function(dataGR, states, convergedParams){
   if (sum(convergedParams$param$ct == 0) ==0){
-    names <- c("HETD", "NEUT", "GAIN", "AMP", "HLAMP", paste0(rep("HLAMP", 8), 2:9))
+    names <- c("HETD","NEUT","GAIN","AMP","HLAMP",paste0(rep("HLAMP", 8), 2:25))
   }else{
-    names <- c("HOMD", "HETD", "NEUT", "GAIN", "AMP", "HLAMP", paste0(rep("HLAMP", 8), 2:9))
+    names <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP",paste0(rep("HLAMP", 8), 2:25))
   }
   S <- length(dataGR)
   jointStates <- convergedParams$param$jointCNstates

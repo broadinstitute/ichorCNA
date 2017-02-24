@@ -117,10 +117,10 @@ plotCNlogRByChr <- function(dataIn, param = NULL, colName = "copy", segs=NULL, c
   #color coding
   alphaVal <- ceiling(alphaVal * 255); class(alphaVal) = "hexmode"
   alphaSubcloneVal <- ceiling(alphaVal / 2 * 255); class(alphaVal) = "hexmode"
-  cnCol <- c("#00FF00","#006400","#0000FF","#8B0000",rep("#FF0000", 10))
+  cnCol <- c("#00FF00","#006400","#0000FF","#8B0000",rep("#FF0000", 26))
   subcloneCol <- c("#00FF00")
   cnCol <- paste(cnCol,alphaVal,sep="")
-  names(cnCol) <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP",paste0(rep("HLAMP", 8), 2:9))
+  names(cnCol) <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP",paste0(rep("HLAMP", 8), 2:25))
 #  segCol <- cnCol
 #  ## add in colors for subclone if param provided
 #  if (!is.null(param)){
