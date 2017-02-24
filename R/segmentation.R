@@ -94,7 +94,7 @@ HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL, chrT
                               subclone.status = as.numeric(subclone.status))
   
   	## order by chromosome ##
-  	chrOrder <- c(1:22,"X","Y")
+  	chrOrder <- unique(chr) #c(1:22,"X","Y")
   	cnaList[[id]] <- cnaList[[id]][order(match(cnaList[[id]][, "chr"],chrOrder)),]
   	## remove MT chr ##
     cnaList[[id]] <- cnaList[[id]][cnaList[[id]][,"chr"] %in% chrOrder, ]
