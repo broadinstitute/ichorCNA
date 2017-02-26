@@ -12,48 +12,16 @@
 
 ## plot solutions for all samples
 plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir, 
-                          numSamples=1, plotFileType="pdf", plotYLim=c(-2,2)){
+                          numSamples=1, plotFileType="pdf", plotYLim=c(-2,2),
+                          estimateScPrevalence, maxCN){
   ## for each sample ##
   for (s in 1:numSamples){
     iter <- hmmResults.cor$results$iter
     id <- names(hmmResults.cor$cna)[s]
 
-    ## plot genome wide figures for each solution ##
-    ploidyEst <- hmmResults.cor$results$phi[s, iter]
-    normEst <- hmmResults.cor$results$n[s, iter]
-    purityEst <- 1 - normEst
-    ploidyAll <- (1 - normEst) * ploidyEst + normEst * 2
-    subclone <- 1 - hmmResults.cor$results$sp[s, iter]
     outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide")
-      if (plotFileType == "png"){ 
-          outPlotFile <- paste0(outPlotFile, ".png")
-          png(outPlotFile,width=20,height=6,units="in",res=300)
-      }else{
-          outPlotFile <- paste0(outPlotFile, ".pdf")
-          pdf(outPlotFile,width=20,height=6)
-      }	
-    plotCNlogRByChr(hmmResults.cor$cna[[s]], segs = hmmResults.cor$results$segs[[s]], 
-                    param = hmmResults.cor$results$param, colName = "logR", chr=NULL, 
-                    ploidy = ploidyAll, cytoBand=T, yrange=plotYLim)  #ylim for plot
-    annotStr <- paste0("Tumor Fraction: ", signif(purityEst, digits=2), ", Ploidy: ", signif(ploidyEst, digits=3))
-    if (!is.null(coverage)){
-      annotStr <- paste0(annotStr, ", Coverage: ", signif(coverage, digits=2))
-    }
-    mtext(line=-1, annotStr, cex=1.5)
-    if (estimateScPrevalence){
-      sampleBins <- hmmResults.cor$cna[[s]]
-      #sampleBins <- sampleBins[sampleBins$chr %in% chrTrain, ]
-      subBinCount <- sum(sampleBins$subclone.status) 
-      fracGenomeSub <- subBinCount / nrow(sampleBins)
-      fracCNAsub <- subBinCount / sum(sampleBins$copy.number != 2)
-      if (fracGenomeSub > 0){
-        annotSubStr <- paste0("Subclone Fraction: ", signif(subclone, digits=3), 
-                              ", Frac. Genome Subclonal: ", format(round(fracGenomeSub, 2), nsmall = 2),
-                              ", Frac. CNA Subclonal: ", format(round(fracCNAsub, 2), nsmall = 2))
-        mtext(line=-2, annotSubStr, cex=1.5)
-      }
-    }
-    dev.off()
+    plotGWSolution(hmmResults.cor, s, outPlotFile, plotFileType=plotFileType, plotYLim=plotYLim,
+                   estimateScPrevalence=estimateScPrevalence)
 
     ### PLOT THE LOG RATIO DATA ALONG WITH COLOUR-CODING FOR PREDICTED CALLS ###
     for (i in chrs){
@@ -102,11 +70,54 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir,
     plotParam(mus = unique(hmmResults.cor$results$mus[, s, iter]), 
               lambdas = hmmResults.cor$results$lambdas[, s, iter], 
               subclone = hmmResults.cor$results$param$ct.sc.status,
-              nu = hmmResults.cor$results$param$nu, copy.states = 1:maxCNum)
+              nu = hmmResults.cor$results$param$nu, copy.states = 1:maxCN)
     dev.off()
 
   }
 }
+
+
+plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf", 
+                           plotYLim=c(-2,2), estimateScPrevalence){
+    ## plot genome wide figures for each solution ##
+    iter <- hmmResults.cor$results$iter
+    ploidyEst <- hmmResults.cor$results$phi[s, iter]
+    normEst <- hmmResults.cor$results$n[s, iter]
+    purityEst <- 1 - normEst
+    ploidyAll <- (1 - normEst) * ploidyEst + normEst * 2
+    subclone <- 1 - hmmResults.cor$results$sp[s, iter]
+    #outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide")
+      if (plotFileType == "png"){ 
+          outPlotFile <- paste0(outPlotFile, ".png")
+          png(outPlotFile,width=20,height=6,units="in",res=300)
+      }else{
+          outPlotFile <- paste0(outPlotFile, ".pdf")
+          pdf(outPlotFile,width=20,height=6)
+      }	
+    plotCNlogRByChr(hmmResults.cor$cna[[s]], segs = hmmResults.cor$results$segs[[s]], 
+                    param = hmmResults.cor$results$param, colName = "logR", chr=NULL, 
+                    ploidy = ploidyAll, cytoBand=T, yrange=plotYLim)  #ylim for plot
+    annotStr <- paste0("Tumor Fraction: ", signif(purityEst, digits=2), ", Ploidy: ", signif(ploidyEst, digits=3))
+    if (!is.null(coverage)){
+      annotStr <- paste0(annotStr, ", Coverage: ", signif(coverage, digits=2))
+    }
+    mtext(line=-1, annotStr, cex=1.5)
+    if (estimateScPrevalence){
+      sampleBins <- hmmResults.cor$cna[[s]]
+      #sampleBins <- sampleBins[sampleBins$chr %in% chrTrain, ]
+      subBinCount <- sum(sampleBins$subclone.status) 
+      fracGenomeSub <- subBinCount / nrow(sampleBins)
+      fracCNAsub <- subBinCount / sum(sampleBins$copy.number != 2)
+      if (fracGenomeSub > 0){
+        annotSubStr <- paste0("Subclone Fraction: ", signif(subclone, digits=3), 
+                              ", Frac. Genome Subclonal: ", format(round(fracGenomeSub, 2), nsmall = 2),
+                              ", Frac. CNA Subclonal: ", format(round(fracCNAsub, 2), nsmall = 2))
+        mtext(line=-2, annotSubStr, cex=1.5)
+      }
+    }
+    dev.off()
+}
+
 
 #data is the output format of HMMcopy (*.cna.txt)
 #cytoBand = {T, F}
