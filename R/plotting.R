@@ -18,6 +18,10 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir,
   for (s in 1:numSamples){
     iter <- hmmResults.cor$results$iter
     id <- names(hmmResults.cor$cna)[s]
+    ploidyEst <- hmmResults.cor$results$phi[s, iter]
+    normEst <- hmmResults.cor$results$n[s, iter]
+    purityEst <- 1 - normEst
+    ploidyAll <- (1 - normEst) * ploidyEst + normEst * 2
 
     outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide")
     plotGWSolution(hmmResults.cor, s, outPlotFile, plotFileType=plotFileType, plotYLim=plotYLim,
@@ -35,7 +39,8 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir,
         pdf(outPlot,width=15,height=5)
       }			
       par(mfrow=c(1,1))
-      plotCNlogRByChr(hmmResults.cor$cna[[s]], segs=hmmResults.cor$results$segs[[s]], chr=i, 
+      plotCNlogRByChr(hmmResults.cor$cna[[s]], segs=hmmResults.cor$results$segs[[s]], chr=i,
+                      ploidy = ploidyAll, 
                       colName="logR", cytoBand=T, yrange=plotYLim, cex=0.75, spacing=8)	
       dev.off()
     }
