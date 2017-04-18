@@ -83,7 +83,7 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir,
 
 
 plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf", 
-                           plotYLim=c(-2,2), estimateScPrevalence){
+                           plotYLim=c(-2,2), estimateScPrevalence, turnDevOff=TRUE){
     ## plot genome wide figures for each solution ##
     iter <- hmmResults.cor$results$iter
     ploidyEst <- hmmResults.cor$results$phi[s, iter]
@@ -120,7 +120,9 @@ plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf",
         mtext(line=-2, annotSubStr, cex=1.5)
       }
     }
-    dev.off()
+    if (turnDevOff){
+        dev.off()
+    }
 }
 
 
@@ -197,7 +199,7 @@ plotCNlogRByChr <- function(dataIn, param = NULL, colName = "copy", segs=NULL, c
       if (cytoBand==TRUE){
         require(quantsmooth)
         par(xpd = NA)
-        paintCytobands(chrom=chr, units="bases", pos=c(0,(yrange[1]-0.5)), width=0.75, legend=F)	
+        #paintCytobands(chrom=chr, units="bases", pos=c(0,(yrange[1]-0.5)), width=0.75, legend=F)	
       }
       
       if (!is.null(geneAnnot)){

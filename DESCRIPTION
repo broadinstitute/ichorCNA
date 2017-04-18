@@ -5,6 +5,7 @@ Version: 0.1.0
 Date: 2017-01-06
 Author: Gavin Ha, Justin Rhoades, Sam Freeman
 Maintainer: Gavin Ha <gavinha@broadinstitute.org>, Justin Rhoades <rhoades@broadinstitute.org>, Sam Freeman <sfreeman@broadinstitute.org>
-Depends: R (>= 3.3.0), HMMcopy (>= 1.14.0), plyr (>= 1.8.4), GenomeInfoDb (>= 1.8.7), quantsmooth (>= 1.38.0)
+Depends: R (>= 3.3.0)
+Imports: HMMcopy (>= 1.14.0), plyr (>= 1.8.4), GenomeInfoDb (>= 1.8.7)
 Description: A tool for estimating the fraction of tumor in ultra-low-pass whole genome sequencing (ULP-WGS) of cell-free DNA.
 License: MIT
