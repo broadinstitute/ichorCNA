@@ -92,6 +92,7 @@ plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf",
     ploidyAll <- (1 - normEst) * ploidyEst + normEst * 2
     subclone <- 1 - hmmResults.cor$results$sp[s, iter]
     #outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide")
+    if (turnDevOff){
       if (plotFileType == "png"){ 
           outPlotFile <- paste0(outPlotFile, ".png")
           png(outPlotFile,width=20,height=6,units="in",res=300)
@@ -99,6 +100,7 @@ plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf",
           outPlotFile <- paste0(outPlotFile, ".pdf")
           pdf(outPlotFile,width=20,height=6)
       }	
+    }
     plotCNlogRByChr(hmmResults.cor$cna[[s]], segs = hmmResults.cor$results$segs[[s]], 
                     param = hmmResults.cor$results$param, colName = "logR", chr=NULL, 
                     ploidy = ploidyAll, cytoBand=T, yrange=plotYLim)  #ylim for plot
