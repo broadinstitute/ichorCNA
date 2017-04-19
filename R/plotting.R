@@ -25,7 +25,7 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir,
 
     outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide")
     plotGWSolution(hmmResults.cor, s, outPlotFile, plotFileType=plotFileType, plotYLim=plotYLim,
-                   estimateScPrevalence=estimateScPrevalence)
+                   estimateScPrevalence=estimateScPrevalence, main=id)
 
     ### PLOT THE LOG RATIO DATA ALONG WITH COLOUR-CODING FOR PREDICTED CALLS ###
     for (i in chrs){
