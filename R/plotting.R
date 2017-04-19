@@ -84,7 +84,7 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir,
 
 plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf", 
                            plotYLim=c(-2,2), estimateScPrevalence, main,
-                           turnDevOn=TURE, turnDevOff=TRUE){
+                           turnDevOn=TRUE, turnDevOff=TRUE){
     ## plot genome wide figures for each solution ##
     iter <- hmmResults.cor$results$iter
     ploidyEst <- hmmResults.cor$results$phi[s, iter]
