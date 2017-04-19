@@ -83,7 +83,8 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir,
 
 
 plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf", 
-                           plotYLim=c(-2,2), estimateScPrevalence, turnDevOff=TRUE){
+                           plotYLim=c(-2,2), estimateScPrevalence, main,
+                           turnDevOn=TURE, turnDevOff=TRUE){
     ## plot genome wide figures for each solution ##
     iter <- hmmResults.cor$results$iter
     ploidyEst <- hmmResults.cor$results$phi[s, iter]
@@ -92,7 +93,7 @@ plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf",
     ploidyAll <- (1 - normEst) * ploidyEst + normEst * 2
     subclone <- 1 - hmmResults.cor$results$sp[s, iter]
     #outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide")
-    if (turnDevOff){
+    if (turnDevOn){
       if (plotFileType == "png"){ 
           outPlotFile <- paste0(outPlotFile, ".png")
           png(outPlotFile,width=20,height=6,units="in",res=300)
@@ -103,7 +104,7 @@ plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf",
     }
     plotCNlogRByChr(hmmResults.cor$cna[[s]], segs = hmmResults.cor$results$segs[[s]], 
                     param = hmmResults.cor$results$param, colName = "logR", chr=NULL, 
-                    ploidy = ploidyAll, cytoBand=T, yrange=plotYLim)  #ylim for plot
+                    ploidy = ploidyAll, cytoBand=T, yrange=plotYLim, main=main)  #ylim for plot
     annotStr <- paste0("Tumor Fraction: ", signif(purityEst, digits=2), ", Ploidy: ", signif(ploidyEst, digits=3))
     if (!is.null(coverage)){
       annotStr <- paste0(annotStr, ", Coverage: ", signif(coverage, digits=2))
@@ -133,7 +134,7 @@ plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf",
 #alphaVal = [0,1]
 #geneAnnot is a dataframe with 4 columns: geneSymbol, chr, start, stop
 #spacing is the distance between each track
-plotCNlogRByChr <- function(dataIn, param = NULL, colName = "copy", segs=NULL, chr=NULL, ploidy = NULL, geneAnnot=NULL, yrange=c(-4,6), xlim=NULL, xaxt = "n", cex = 0.5, gene.cex = 0.5, plot.title = NULL, spacing=4, cytoBand=T, alphaVal=1){
+plotCNlogRByChr <- function(dataIn, param = NULL, colName = "copy", segs=NULL, chr=NULL, ploidy = NULL, geneAnnot=NULL, yrange=c(-4,6), xlim=NULL, xaxt = "n", cex = 0.5, gene.cex = 0.5, plot.title = NULL, spacing=4, cytoBand=T, alphaVal=1, main){
   #color coding
   alphaVal <- ceiling(alphaVal * 255); class(alphaVal) = "hexmode"
   alphaSubcloneVal <- ceiling(alphaVal / 2 * 255); class(alphaVal) = "hexmode"
@@ -229,7 +230,8 @@ plotCNlogRByChr <- function(dataIn, param = NULL, colName = "copy", segs=NULL, c
          xlim=c(1,as.numeric(coord$posns[length(coord$posns)])),
          xlab="",ylab="Copy Number (log2 ratio)",
          cex.lab=1.5,cex.axis=1.5,cex=0.5,las=1,bty="n",
-         main=dataIn[1,"sample"])
+         #main=dataIn[1,"sample"])
+         main=main)
     #plot segments
     if (!is.null(segs)){
       coordEnd <- getGenomeWidePositions(segs[, "chr"], segs[, "end"])
