@@ -25,7 +25,7 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir,
 
     outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide")
     plotGWSolution(hmmResults.cor, s, outPlotFile, plotFileType=plotFileType, plotYLim=plotYLim,
-                   estimateScPrevalence=estimateScPrevalence)
+                   estimateScPrevalence=estimateScPrevalence, main=id)
 
     ### PLOT THE LOG RATIO DATA ALONG WITH COLOUR-CODING FOR PREDICTED CALLS ###
     for (i in chrs){
@@ -84,7 +84,7 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir,
 
 plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf", 
                            plotYLim=c(-2,2), estimateScPrevalence, main,
-                           turnDevOn=TURE, turnDevOff=TRUE){
+                           turnDevOn=TRUE, turnDevOff=TRUE){
     ## plot genome wide figures for each solution ##
     iter <- hmmResults.cor$results$iter
     ploidyEst <- hmmResults.cor$results$phi[s, iter]
@@ -199,12 +199,6 @@ plotCNlogRByChr <- function(dataIn, param = NULL, colName = "copy", segs=NULL, c
         }
       }
       
-      if (cytoBand==TRUE){
-        require(quantsmooth)
-        par(xpd = NA)
-        #paintCytobands(chrom=chr, units="bases", pos=c(0,(yrange[1]-0.5)), width=0.75, legend=F)	
-      }
-      
       if (!is.null(geneAnnot)){
         #par(xpd=F)
         colnames(geneAnnot) <- c("Gene","Chr","Start","Stop")
@@ -237,7 +231,9 @@ plotCNlogRByChr <- function(dataIn, param = NULL, colName = "copy", segs=NULL, c
       coordEnd <- getGenomeWidePositions(segs[, "chr"], segs[, "end"])
       coordStart <- coordEnd$posns - (segs[, "end"] - segs[, "start"] + 1)
       xlim <- as.numeric(c(1, coordEnd$posns[length(coordEnd$posns)]))
-      col <- cnCol[as.numeric(segs[, "state"] + 1)]
+      #col <- cnCol[as.numeric(segs[, "state"] + 1)]
+      col <- cnCol[as.numeric(segs[, "copy.number"]) + 1]
+      #write.table(segs, "~/Documents/multisample/segs_debug.seg", quote=F, sep="\t", row.names=F)  ## debug
       value <- as.numeric(segs[, "median"])
       sc.status <- as.logical(segs[, "subclone.status"])
       mat <- as.data.frame(cbind(coordStart, coordEnd$posns, value, sc.status, col))
