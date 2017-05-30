@@ -1,0 +1,7 @@
+samples:
+  01115_466.TM.EX:  /xchip/bloodbiopsy/gavinha/cfDNA_WES/PRAD/samples/01115_466.TM.EX.bam
+  01115_466.BN.EX:  /xchip/bloodbiopsy/gavinha/cfDNA_WES/PRAD/samples/01115_466.BN.EX.bam
+
+
+pairings:
+  01115_466.TM.EX:  01115_466.BN.EX

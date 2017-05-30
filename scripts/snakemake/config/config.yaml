@@ -1,0 +1,59 @@
+## read depth params ##
+readCounterScript:  code/readCounter
+chrs:
+  1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,X,Y
+binSize:  50000
+
+## ichorCNA params ##
+ichorCNA_rscript:  code/ulp_wgs_hmm.R
+ichorCNA_libdir:
+  /home/unix/gavinha/software/code/git/ULP-WGS_versions/pre_subclone_branch/ULP-WGS-HMM/src/  
+ichorCNA_datadir:
+  /home/unix/gavinha/software/code/git/scripts/hmmcopy/analysis/lowpassWGS/
+ichorCNA_exons:
+  /home/unix/gavinha/software/code/git/scripts/references/whole_exome_illumina_coding_v1.Homo_sapiens_assembly19.targets.interval_list
+ichorCNA_centromere:
+  /home/unix/gavinha/software/code/git/scripts/references/GRCh37.p13_centromere_UCSC-gapTable.txt
+ichorCNA_chrs:  c(1:22, \"X\")
+ichorCNA_chrTrain:  c(1:22)  
+ichorCNA_normal:  c(0.5)  
+ichorCNA_ploidy:  c(2,3)  
+ichorCNA_maxCN:  8  
+ichorCNA_txnE:  0.9999
+ichorCNA_txnStrength:  10000
+ichorCNA_plotFileType:  png
+ichorCNA_plotYlim:  c(-2,4)
+
+  
+## allele counts - samtools, pysam ##
+pyCountScript:  code/countPysam.py
+#pyEnv:  code/python_env.sh
+refFasta:
+  /seq/references/Homo_sapiens_assembly19/v1/Homo_sapiens_assembly19.fasta
+snpDB:
+  /home/unix/gavinha/software/code/git/scripts/references/hapmap_3.3.b37.vcf
+filterHETrscript: code/getPhasedHETSitesFromLLRVCF.R
+map_quality:  10
+base_quality: 10
+vcf_quality:  100
+
+## TitanCNA params ##
+TitanCNA_rscript: code/titanCNA.R
+TitanCNA_selectSolutionRscript: code/selectSolution.R
+TitanCNA_libdir:  /home/unix/gavinha/software/code/git/TitanCNA/
+TitanCNA_numCores: 1
+TitanCNA_maxNumClonalClusters: 2
+TitanCNA_centromere:  /home/unix/gavinha/software/code/git/scripts/references/GRCh37.p13_centromere_UCSC-gapTable.txt
+TitanCNA_chrs:  c(1:22, \"X\")
+TitanCNA_normalInit: 0.5
+TitanCNA_maxPloidy: 3
+TitanCNA_estimateNormal:  map
+TitanCNA_estimatePloidy:  TRUE
+TitanCNA_estimateClonality: TRUE
+TitanCNA_alleleModel: binomial
+TitanCNA_alphaK:  2500
+TitanCNA_alphaR:  2500
+TitanCNA_txnExpLen: 1e13
+TitanCNA_plotYlim:  c(-4,6)
+TitanCNA_solutionThreshold: 0.05
+
