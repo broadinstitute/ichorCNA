@@ -1,0 +1,4 @@
+scripts/
+LICENSE
+^.travis\.yml$
+README.md
