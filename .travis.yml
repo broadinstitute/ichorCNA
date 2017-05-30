@@ -1,0 +1,5 @@
+language: r
+r: bioc-release
+cache: packages
+warnings_are_errors: false
+r_check_args: --timings
