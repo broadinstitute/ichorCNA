@@ -60,8 +60,8 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
   n[, i] <- param$n_0
   sp[, i] <- param$sp_0
   phi[, i] <- param$phi_0
-  lambdas[, , i] <- matrix(param$lambda, nrow = K, ncol = S, byrow = FALSE)
-  lambdasKS <- as.matrix(expand.grid(rep(list(param$lambda), S)))
+  lambdas[, , i] <- param$lambda #matrix(param$lambda, nrow = K, ncol = S, byrow = TRUE)
+  lambdasKS <- as.matrix(expand.grid(as.data.frame(lambdas[, , i]))) #as.matrix(expand.grid(rep(list(param$lambda), S)))
   mus[, , i] <- as.matrix(get2and3ComponentMixture(param$jointCNstates, param$jointSCstatus, n[, i], sp[, i], phi[, i]))
   
   # Likelihood #
@@ -114,9 +114,9 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
                                 estimateInitDist = estimateInitDist, estimateSubclone = estimateSubclone)
     if (verbose == TRUE) {
       for (s in 1:S){
-        message("Sample", s, " n=", format(output$n[s], digits = 2), ", sp=", format(output$sp[s], digits = 2), 
-                ", phi=", format(output$phi[s], digits = 4), 
-                ", lambda=", paste0(format(output$lambda[, s], digits=2), collapse = ","),
+        message("Sample", s, " n=", signif(output$n[s], digits = 4), ", sp=", signif(output$sp[s], digits = 4), 
+                ", phi=", signif(output$phi[s], digits = 4), 
+                ", lambda=", paste0(signif(output$lambda[, s], digits=5), collapse = ","),
                 ", F=", signif(output$F, digits=4))
       }     
     }

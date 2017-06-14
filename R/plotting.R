@@ -105,7 +105,7 @@ plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf",
     plotCNlogRByChr(hmmResults.cor$cna[[s]], segs = hmmResults.cor$results$segs[[s]], 
                     param = hmmResults.cor$results$param, colName = "logR", chr=NULL, 
                     ploidy = ploidyAll, cytoBand=T, yrange=plotYLim, main=main)  #ylim for plot
-    annotStr <- paste0("Tumor Fraction: ", signif(purityEst, digits=2), ", Ploidy: ", signif(ploidyEst, digits=3))
+    annotStr <- paste0("Tumor Fraction: ", signif(purityEst, digits=4), ", Ploidy: ", signif(ploidyEst, digits=3))
     if (!is.null(coverage)){
       annotStr <- paste0(annotStr, ", Coverage: ", signif(coverage, digits=2))
     }

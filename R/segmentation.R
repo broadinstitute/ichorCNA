@@ -136,7 +136,7 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9
 		phi_0 = 2, alphaPhi = 4, betaPhi = 1.5,
 		n_0 = 0.5, alphaN = 2, betaN = 2,
 		sp_0 = 0.5, alphaSp = 2, betaSp = 2,
-		lambda = rep(100, length(ct)+length(ct.sc)),
+		lambda = as.matrix(rep(100, length(ct)+length(ct.sc)), ncol=1),
 		nu = 2.1,
 		kappa = rep(75, length(ct)), 
 		alphaLambda = 5
@@ -145,6 +145,7 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9
   ## initialize hyperparameters for precision using observed data ##
 	if (!is.null(dim(x))){ # multiple samples (columns)
     param$numberSamples <- ncol(x)
+    #betaLambdaVal <- ((apply(x, 2, function(x){ sd(diff(x), na.rm=TRUE) }) / sqrt(length(param$ct))) ^ 2)
     betaLambdaVal <- ((apply(x, 2, sd, na.rm = TRUE) / sqrt(length(param$ct))) ^ 2)   
 	}else{ # only 1 sample
 	  param$numberSamples <- 1
@@ -154,16 +155,17 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9
   param$alphaLambda <- rep(param$alphaLambda, K)
   
 	# increase prior precision for -1, 0, 1 copies at ploidy
-	param$lambda[param$ct %in% c(1,2,3)] <- 1000 # HETD, NEUT, GAIN
+	#param$lambda[param$ct %in% c(1,2,3)] <- 1000 # HETD, NEUT, GAIN
 	#param$lambda[param$ct == 4] <- 100 
-	param$lambda[which.max(param$ct)] <- 50 #highest CN
-	param$lambda[param$ct == 0] <- 1 #HOMD
-	
+	#param$lambda[which.max(param$ct)] <- 50 #highest CN
+	#param$lambda[param$ct == 0] <- 1 #HOMD
+	S <- param$numberSamples
+	logR.var <- 1 / ((apply(x, 2, sd, na.rm = TRUE) / sqrt(length(param$ct))) ^ 2)
 	if (!is.null(dim(x))){ # multiple samples (columns)
-	  ## TODO ##
-	}else{ # only 1 sample
-    logR.var <- 1 / ((apply(x, 2, sd, na.rm = TRUE) / sqrt(length(param$ct))) ^ 2)
-    param$lambda <- rep(logR.var, length(param$ct))
+		param$lambda <- matrix(logR.var, nrow=K, ncol=S, byrow=T, dimnames=list(c(),colnames(x)))
+	}else{ # only 1 sample    
+		#logR.var <- 1 / ((sd(x, na.rm = TRUE) / sqrt(length(param$ct))) ^ 2)
+    param$lambda <- matrix(logR.var, length(param$ct))
     param$lambda[param$ct %in% c(2)] <- logR.var 
     param$lambda[param$ct %in% c(1,3)] <- logR.var 
     param$lambda[param$ct >= 4] <- logR.var / 5
@@ -171,7 +173,6 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9
     param$lambda[param$ct.sc.status] <- logR.var / 10
   }
   # define joint copy number states #
-  S <- param$numberSamples
   param$jointCNstates <- expand.grid(rep(list(param$ct), S))
   param$jointSCstatus <- expand.grid(rep(list(param$ct.sc.status), S))
   colnames(param$jointCNstates) <- paste0("Sample.", 1:param$numberSamples)
@@ -183,8 +184,10 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9
   # joint states where at least "tol" fraction of samples with the same CN state
 	#apply(param$jointCNstates, 1, function(x){ sum(duplicated(as.numeric(x))) > 0 })
   cnStateDiff <- apply(param$jointCNstates, 1, function(x){ (abs(max(x) - min(x)))})
-  txn$A[, cnStateDiff == 0] <- txn$A[, cnStateDiff == 0] * e.sameState * K 
-  txn$A[, cnStateDiff >= 3] <- txn$A[, cnStateDiff >=3]  / e.sameState / K
+  if (e.sameState > 0 & S > 1){
+		txn$A[, cnStateDiff == 0] <- txn$A[, cnStateDiff == 0] * e.sameState * K 
+		txn$A[, cnStateDiff >= 3] <- txn$A[, cnStateDiff >=3]  / e.sameState / K
+	}
   for (i in 1:nrow(txn$A)){
     for (j in 1:ncol(txn$A)){
       if (i == j){
