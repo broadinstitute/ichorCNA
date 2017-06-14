@@ -34,14 +34,14 @@ option_list <- list(
   make_option(c("--scStates"), type="character", default="NULL", help = "Subclonal states to consider"),
   make_option(c("--coverage"), type="numeric", default=NULL, help = "PICARD sequencing coverage"),
   make_option(c("--lambda"), type="character", default="NULL", help="Initial Student's t precision; must contain 4 values (e.g. c(1500,1500,1500,1500))"),
-  make_option(c("--lambdaScaleHyperParam"), type="numeric", default=5, help="Hyperparameter (scale) for Gamma prior on Student's-t precision."),
+  make_option(c("--lambdaScaleHyperParam"), type="numeric", default=3, help="Hyperparameter (scale) for Gamma prior on Student's-t precision."),
   #	make_option(c("--kappa"), type="character", default=50, help="Initial state distribution"),
   make_option(c("-p", "--ploidy"), type="character", default="2", help = "Initial tumour ploidy"),
   make_option(c("-m", "--maxCN"), type="numeric", default=7, help = "Total clonal CN states"),
   make_option(c("--estimateNormal"), type="logical", default=TRUE, help = "Estimate normal."),
-  make_option(c("--estimateScPrevalence"), type="logical", default=FALSE, help = "Estimate subclonal prevalence."),
-  make_option(c("--estimatePloidy"), type="logical", default=FALSE, help = "Estimate tumour ploidy."),
-  make_option(c("--maxFracCNASubclone"), type="numeric", default=0.5, help="Exclude solutions with fraction of subclonal events greater than this value."),
+  make_option(c("--estimateScPrevalence"), type="logical", default=TRUE, help = "Estimate subclonal prevalence."),
+  make_option(c("--estimatePloidy"), type="logical", default=TRUE, help = "Estimate tumour ploidy."),
+  make_option(c("--maxFracCNASubclone"), type="numeric", default=0.7, help="Exclude solutions with fraction of subclonal events greater than this value."),
   make_option(c("--maxFracGenomeSubclone"), type="numeric", default=0.5, help="Exclude solutions with subclonal genome fraction greater than this value."),
   make_option(c("--minSegmentBins"), type="numeric", default=50, help="Minimum number of bins for largest segment threshold required to estimate tumor fraction; if below this threshold, then will be assigned zero tumor fraction."),
   make_option(c("--altFracThreshold"), type="numeric", default=0.05, help="Minimum proportion of bins altered required to estimate tumor fraction; if below this threshold, then will be assigned zero tumor fraction."),
@@ -51,7 +51,7 @@ option_list <- list(
   make_option(c("--diploidChrX"), type="logical", default=FALSE, help = "Assume 2 copies of chrX"),
   make_option(c("--normalizeMaleX"), type="logical", default=FALSE, help = "If male, then normalize chrX by median"),
   make_option(c("--fracReadsInChrYForMale"), type="numeric", default=0.001, help = "Threshold for fraction of reads in chrY to assign as male."),
-  make_option(c("--includeHOMD"), type="logical", default=TRUE, help="If false, then exclude HOMD state"),
+  make_option(c("--includeHOMD"), type="logical", default=FALSE, help="If false, then exclude HOMD state"),
   make_option(c("--txnE"), type="numeric", default=0.9999999, help = "Self-transition probability"),
   make_option(c("--txnStrength"), type="numeric", default=10000000, help = "Transition pseudo-counts"),
   	make_option(c("--plotFileType"), type="character", default="pdf", help = "File format for output plots"),
@@ -97,7 +97,7 @@ datadir <- opt$datadir
 plotFileType <- opt$plotFileType
 plotYLim <- eval(parse(text=opt$plotYLim))
 gender <- NULL
-outImage <- paste0(outDir,"/", id,".RData")
+outImage <- paste0(outDir,"/", patientID,".RData")
 diploidChrXThreshold <- 0.5
 chrs <- eval(parse(text = opt$chrs))
 #chrs <- c(chrs, "Y")
@@ -121,7 +121,7 @@ if (!is.null(centromere)){
 }
 ## FILTER BY EXONS IF PROVIDED ##
 ## add gc and map to RangedData object ##
-if (!is.null(exons.bed)){
+if (!is.null(exons.bed) && exons.bed != "None" && exons.bed != "NULL"){
   targetedSequences <- read.delim(exons.bed, header=F, sep="\t", skip=86)
 }else{
   targetedSequences <- NULL
@@ -131,7 +131,7 @@ if (!is.null(exons.bed)){
 if (!is.null(normal_panel)){
 	panel <- readRDS(normal_panel) ## load in IRanges object
 }
-#save.image(outImage)
+save.image(outImage)
 
 ## LOAD IN WIG FILES ##
 numSamples <- nrow(wigFiles)
@@ -140,7 +140,7 @@ tumour_copy <- list()
 for (i in 1:numSamples) {
   id <- wigFiles[i,1]
   ## create output directories for each sample ##
-  dir.create(paste0(outDir, "/", id, "/"))
+  dir.create(paste0(outDir, "/", id, "/"), recursive = TRUE)
   ### LOAD TUMOUR AND NORMAL FILES ###
   message("Loading tumour file:", wigFiles[i,1])
   tumour_reads <- wigToRangedData(wigFiles[i,2])
