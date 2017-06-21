@@ -72,7 +72,7 @@ Koch Institute for integrative cancer research at MIT
 ichorCNA is developed and maintained by Gavin Ha (<gavinha@broadinstitute.org>), Justin Rhoades (<rhoades@broadinstitute.org>), and Sam Freeman (<sfreeman@broadinstitute.org>).  
 
 This work was done in collaboration between  
-- **Blood Biopsy Group** at the Broad Institute of MIT and Harvard
+- **Blood Biopsy Group**, Group Leader Viktor Adalsteinsson, Broad Institute of MIT and Harvard
 - Laboratory of **Matthew Meyerson**, Medical Oncology, Dana-Farber Cancer Institute
 - Laboratory of **J. Christopher Love**, Koch Institute for integrative cancer research at MIT
 - Laboratory of **Gad Getz**, Cancer Program, Broad Institute
