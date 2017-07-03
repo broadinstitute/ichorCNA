@@ -1,8 +1,8 @@
 % \VignetteIndexEntry{ichorCNA}
-% \VignetteDepends{ichorCNA}
+% \VignetteDepends{ichorCNA, HMMcopy}
 
-\title{ichorCNA: Estimation of tumor fraction in cell-free DNA from ultra-low-pass whole genome sequencing}
-\author{Gavin Ha}
+\title{ichorCNA: Estimation of tumor fraction in cell-free DNA from ultra-low-pass whole genome sequencing.}
+\author{Gavin Ha, Justin Rhoades, Samuel Freeman}
 \date{\today}
 
 \begin{document}
@@ -10,39 +10,18 @@
 \maketitle
 \tableofcontents
 
-\section{ichorCNA Analysis}
+\section{Introduction}
 
-\subsection{Loading the data}
-Load the provided WIG file with the raw read counts for 1Mb bins.
+ichorCNA is a tool for estimating the fraction of tumor in ultra-low-pass whole genome sequencing (ULP-WGS) of cell-free DNA.
+
+\section{Analysis}
 
 <<>>=
-library(ichorCNA)
 library(HMMcopy)
-tumorWig <- system.file("extdata", "MBC_315.ctDNA.reads.wig",
-                     package = "ichorCNA")
-tumorReads <- wigToRangedData(tumorWig)
-@
+tumor_file <- system.file("extdata", "MBC_315.ctDNA.reads.wig",
+                      package = "ichorCNA")
 
-\subsection{Initialize input parameters}
-Initialize the input parameters.
-
-<<>>=
-
-@
-
-\subsection{Correcting and normalizing the data}
-Correct data for GC and mappability bias and normalize using panel of normals.
-
-<<>>=
-gcWig <- system.file("extdata", "gc_hg19_1000kb.wig", package = "ichorCNA")
-mapWig <- system.file("extdata", "map_hg19_1000kb.wig", package = "ichorCNA")
-centromere <- system.file("extdata", "GRCh37.p13_centromere_UCSC-gapTable.txt", package = "ichorCNA")
-chrNormalize <- c(1:22)
-
-counts <- loadReadCountsFromWig(tumorReads, chrs = chrs, gc = gc, map = map, 
-                                       centromere = centromere, flankLength = flankLength, 
-                                       targetedSequences = targetedSequences, 
-                                       chrNormalize = chrNormalize, mapScoreThres = 0.9)
+tumor_reads <- wigToRangedData(tumor_file)
 @
 
 \end{document}

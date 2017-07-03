@@ -3,34 +3,32 @@
 \alias{ichorCNA}
 \docType{package}
 \title{
-\packageTitle{anRpackage}
+ichorCNA
 }
 \description{
-\packageDescription{anRpackage}
+ichorCNA is a tool for estimating the fraction of tumor in ultra-low-pass whole genome sequencing (ULP-WGS) of cell-free DNA.
 }
 \details{
 
-The DESCRIPTION file:
-\packageDESCRIPTION{anRpackage}
-\packageIndices{anRpackage}
-~~ An overview of how to use the package, including the most important ~~
-~~ functions ~~
+\tabular{ll}{
+Package: \tab ichorCNA\cr
+Type: \tab Package\cr
+Version: \tab 1.12.1\cr
+Date: \tab 2017-07-03\cr
+License: \tab GPL-3\cr
 }
-\author{
-\packageAuthor{anRpackage}
 
-Maintainer: \packageMaintainer{anRpackage}
+\author{
+Gavin Ha <gavinha@broadinstitute.org>
+Justin Rhoades <rhoades@broadinstitute.org>
+Samuel Freeman <sfreeman@broadinstitute.org>
 }
-\references{
-~~ Literature or other references for background information ~~
-}
-~~ Optionally other standard keywords, one per line, from file KEYWORDS in ~~
-~~ the R documentation directory ~~
-\keyword{ package }
-\seealso{
-~~ Optional links to other man pages, e.g. ~~
-~~ \code{\link[<pkg>:<pkg>-package]{<pkg>}} ~~
-}
+
 \examples{
-~~ simple examples of the most important functions ~~
+library(HMMcopy)
+tumor_file <- system.file("extdata", "MBC_315.ctDNA.reads.wig",
+                      package = "ichorCNA")
+
+tumor_reads <- wigToRangedData(tumor_file)
 }
+

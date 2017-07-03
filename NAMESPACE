@@ -1,1 +1,2 @@
-export(HMMsegment, outputHMM, plotSolutions)
+export(loadReadCountsFromWig, normalizeByPanelOrMatchedNormal, getDefaultParameters,
+       HMMsegment, plotGWSolution, outputHMM, plotSolutions)
