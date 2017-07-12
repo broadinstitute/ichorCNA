@@ -1,2 +1,3 @@
+import(HMMcopy, plyr, GenomeInfoDb)
 export(loadReadCountsFromWig, normalizeByPanelOrMatchedNormal, getDefaultParameters,
        HMMsegment, plotGWSolution, outputHMM, plotSolutions)
