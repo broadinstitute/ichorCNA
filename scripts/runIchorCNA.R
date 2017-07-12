@@ -13,31 +13,27 @@
 # description: Hidden Markov model (HMM) to analyze Ultra-low pass whole genome sequencing (ULP-WGS) data.
 # This script is the main script to run the HMM.
 
-library(HMMcopy)
 library(optparse)
 
-options(stringsAsFactors=FALSE)
-options(bitmapType='cairo')
-
 option_list <- list(
-  make_option(c("-l", "--libdir"), type = "character", help = "Script library path"),
-  make_option(c("--datadir"), type = "character", help = "Reference wig dir path"),
-  make_option(c("-t", "--WIG"), type = "character", default=NULL, help = "Path to tumor WIG file."),
+  make_option(c("--WIG"), type = "character", default=NULL, help = "Path to tumor WIG file."),
   make_option(c("--NORMWIG"), type = "character", default=NULL, help = "Path to normal WIG file."),
+  make_option(c("--gcWig"), type = "character", default=NULL, help = "Path to GC-content WIG file."),
+  make_option(c("--mapWig"), type = "character", default=NULL, help = "Path to mappability score WIG file."),
   make_option(c("--normalPanel"), type="character", default=NULL, help="Median corrected depth from panel of normals"),
-  make_option(c("-e", "--exons.bed"), type = "character", default=NULL, help = "Path to bed file containing exon regions."),
+  make_option(c("--exons.bed"), type = "character", default=NULL, help = "Path to bed file containing exon regions."),
   make_option(c("--id"), type = "character", help = "Patient ID."),
   #make_option(c("--gcOnly"), type="logical", default=FALSE, help = "TRUE if only correct for GC content bias"),
-  make_option(c("-c", "--centromere"), type="character", default=NULL, help = "File containing Centromere locations"),
+  make_option(c("--centromere"), type="character", default=NULL, help = "File containing Centromere locations"),
   make_option(c("--rmCentromereFlankLength"), type="numeric", default=1e5, help="Length of region flanking centromere to remove"),
-  make_option(c("-n", "--normal"), type="character", default="0.5", help = "Initial normal contamination"),
+  make_option(c("--normal"), type="character", default="0.5", help = "Initial normal contamination"),
   make_option(c("--scStates"), type="character", default="NULL", help = "Subclonal states to consider"),
   make_option(c("--coverage"), type="numeric", default=NULL, help = "PICARD sequencing coverage"),
   make_option(c("--lambda"), type="character", default="NULL", help="Initial Student's t precision; must contain 4 values (e.g. c(1500,1500,1500,1500))"),
   make_option(c("--lambdaScaleHyperParam"), type="numeric", default=3, help="Hyperparameter (scale) for Gamma prior on Student's-t precision."),
   #	make_option(c("--kappa"), type="character", default=50, help="Initial state distribution"),
-  make_option(c("-p", "--ploidy"), type="character", default="2", help = "Initial tumour ploidy"),
-  make_option(c("-m", "--maxCN"), type="numeric", default=7, help = "Total clonal CN states"),
+  make_option(c("--ploidy"), type="character", default="2", help = "Initial tumour ploidy"),
+  make_option(c("--maxCN"), type="numeric", default=7, help = "Total clonal CN states"),
   make_option(c("--estimateNormal"), type="logical", default=TRUE, help = "Estimate normal."),
   make_option(c("--estimateScPrevalence"), type="logical", default=TRUE, help = "Estimate subclonal prevalence."),
   make_option(c("--estimatePloidy"), type="logical", default=TRUE, help = "Estimate tumour ploidy."),
@@ -56,16 +52,24 @@ option_list <- list(
   make_option(c("--txnStrength"), type="numeric", default=10000000, help = "Transition pseudo-counts"),
   	make_option(c("--plotFileType"), type="character", default="pdf", help = "File format for output plots"),
 	make_option(c("--plotYLim"), type="character", default="c(-2,2)", help = "ylim to use for chromosome plots"),
-  make_option(c("-o", "--outDir"), type="character", default="./", help = "Output Directory")
+  make_option(c("--outDir"), type="character", default="./", help = "Output Directory"),
+  make_option(c("--libdir"), type = "character", default=NULL, help = "Script library path. Usually exclude this argument unless custom modifications have been made to the ichorCNA R package code and the user would like to source those R files.")
 )
 parseobj <- OptionParser(option_list=option_list)
 opt <- parse_args(parseobj)
 print(opt)
 options(scipen=0, stringsAsFactors=F)
 
+library(HMMcopy)
+library(ichorCNA)
+options(stringsAsFactors=FALSE)
+options(bitmapType='cairo')
+
 patientID <- opt$id
 tumour_file <- opt$WIG
 normal_file <- opt$NORMWIG
+gcWig <- opt$gcWig
+mapWig <- opt$mapWig
 normal_panel <- opt$normalPanel
 gcOnly <- as.logical(opt$gcOnly)  # {TRUE, FALSE}
 exons.bed <- opt$exons.bed  # "0" if none specified
@@ -93,7 +97,6 @@ includeHOMD <- as.logical(opt$includeHOMD)
 fracReadsInChrYForMale <- opt$fracReadsInChrYForMale
 outDir <- opt$outDir
 libdir <- opt$libdir
-datadir <- opt$datadir
 plotFileType <- opt$plotFileType
 plotYLim <- eval(parse(text=opt$plotYLim))
 gender <- NULL
@@ -104,21 +107,19 @@ chrs <- eval(parse(text = opt$chrs))
 chrTrain <- eval(parse(text=opt$chrTrain))
 chrNormalize <- eval(parse(text=opt$chrNormalize))
 
-source(paste0(libdir,"/utils.R"))
-source(paste0(libdir,"/segmentation.R"))
-source(paste0(libdir,"/EM.R"))
-source(paste0(libdir,"/output.R"))
-source(paste0(libdir,"/plotting.R"))
-
+if (!is.null(libdir)){
+	source(paste0(libdir,"/utils.R"))
+	source(paste0(libdir,"/segmentation.R"))
+	source(paste0(libdir,"/EM.R"))
+	source(paste0(libdir,"/output.R"))
+	source(paste0(libdir,"/plotting.R"))
+}
 if (substr(tumour_file,nchar(tumour_file)-2,nchar(tumour_file)) == "wig") {
   wigFiles <- data.frame(cbind(patientID, tumour_file))
 } else {
   wigFiles <- read.delim(tumour_file, header=F, as.is=T)
 }
 
-if (!is.null(centromere)){
-  centromere <- read.delim(centromere,header=T,stringsAsFactors=F,sep="\t")
-}
 ## FILTER BY EXONS IF PROVIDED ##
 ## add gc and map to RangedData object ##
 if (!is.null(exons.bed) && exons.bed != "None" && exons.bed != "NULL"){
@@ -131,6 +132,12 @@ if (!is.null(exons.bed) && exons.bed != "None" && exons.bed != "NULL"){
 if (!is.null(normal_panel)){
 	panel <- readRDS(normal_panel) ## load in IRanges object
 }
+
+if (is.null(centromere)){ # no centromere file provided
+	centromere <- system.file("extdata", "GRCh37.p13_centromere_UCSC-gapTable.txt", 
+			package = "ichorCNA")
+}
+centromere <- read.delim(centromere,header=T,stringsAsFactors=F,sep="\t")
 save.image(outImage)
 
 ## LOAD IN WIG FILES ##
@@ -144,11 +151,18 @@ for (i in 1:numSamples) {
   ### LOAD TUMOUR AND NORMAL FILES ###
   message("Loading tumour file:", wigFiles[i,1])
   tumour_reads <- wigToRangedData(wigFiles[i,2])
+  
   ## LOAD GC/MAP WIG FILES ###
 	# find the bin size and load corresponding wig files #
 	binSize <- as.data.frame(tumour_reads[1,])$width 
-	gcWig <- paste0(datadir,"/gc_hg19_",binSize / 1000,"kb.wig")
-	mapWig <- paste0(datadir,"/map_hg19_",binSize / 1000,"kb.wig")
+	if (is.null(gcWig)){
+		gcWig <- system.file("extdata", paste0("gc_hg19_", binSize / 1000, "kb.wig"), 
+				package = "ichorCNA")
+	}
+	if (is.null(mapWig)){
+		mapWig <- system.file("extdata", paste0("map_hg19_", binSize / 1000, "kb.wig"), 
+				package = "ichorCNA")
+	}
 	message("Reading GC and mappability files")
 	gc <- wigToRangedData(gcWig)
 	map <- wigToRangedData(mapWig)
@@ -310,7 +324,6 @@ for (n in normal){
     fracAltSub <- lapply(fracAltSub, function(x){if (is.na(x)){0}else{x}})
     loglik[counter, "Frac_genome_subclonal"] <- paste0(signif(fracGenomeSub, digits=2), collapse=",")
     loglik[counter, "Frac_CNA_subclonal"] <- paste0(signif(as.numeric(fracAltSub), digits=2), collapse=",")
-    loglik[counter, "BIC"] <- signif(computeBIC(hmmResults.cor$results), digits = 4)
     loglik[counter, "init"] <- paste0("n", n, "-p", p)
     loglik[counter, "n_est"] <- paste(signif(hmmResults.cor$results$n[, iter], digits = 2), collapse = ",")
     loglik[counter, "phi_est"] <- paste(signif(hmmResults.cor$results$phi[, iter], digits = 4), collapse = ",")
