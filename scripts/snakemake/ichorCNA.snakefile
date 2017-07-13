@@ -37,11 +37,11 @@ rule ichorCNA:
 		outDir="results/ichorCNA/{tumor}/",
 	params:
 		rscript=config["ichorCNA_rscript"],
-		libdir=config["ichorCNA_libdir"],
-		datadir=config["ichorCNA_datadir"],
 		id="{tumor}",
 		ploidy=config["ichorCNA_ploidy"],
 		normal=config["ichorCNA_normal"],
+		gcwig=config["ichorCNA_gcWig"],
+		mapwig=config["ichorCNA_mapWig"],
 		estimateNormal=config["ichorCNA_estimateNormal"],
 		estimatePloidy=config["ichorCNA_estimatePloidy"],
 		estimateClonality=config["ichorCNA_estimateClonality"],
@@ -62,5 +62,5 @@ rule ichorCNA:
 	log:
 		"logs/ichorCNA/{tumor}.log"	
 	shell:
-		"Rscript {params.rscript} --libdir {params.libdir} --datadir {params.datadir} --id {params.id} --WIG {input.tum} --ploidy \"{params.ploidy}\" --normal \"{params.normal}\" --maxCN {params.maxCN} --includeHOMD {params.includeHOMD} --chrs \"{params.chrs}\" --chrTrain \"{params.chrTrain}\" --estimateNormal {params.estimateNormal} --estimatePloidy {params.estimatePloidy} --estimateScPrevalence {params.estimateClonality} --scStates \"{params.scStates}\" --centromere {params.centromere} --exons.bed {params.exons} --txnE {params.txnE} --txnStrength {params.txnStrength} --fracReadsInChrYForMale {params.fracReadsChrYMale} --plotFileType {params.plotFileType} --plotYLim \"{params.plotYlim}\" --outDir {output.outDir} > {log} 2> {log}"
+		"Rscript {params.rscript} --id {params.id} --WIG {input.tum} --gcWig {params.gcwig} --mapWig {params.mapwig} --ploidy \"{params.ploidy}\" --normal \"{params.normal}\" --maxCN {params.maxCN} --includeHOMD {params.includeHOMD} --chrs \"{params.chrs}\" --chrTrain \"{params.chrTrain}\" --estimateNormal {params.estimateNormal} --estimatePloidy {params.estimatePloidy} --estimateScPrevalence {params.estimateClonality} --scStates \"{params.scStates}\" --centromere {params.centromere} --exons.bed {params.exons} --txnE {params.txnE} --txnStrength {params.txnStrength} --fracReadsInChrYForMale {params.fracReadsChrYMale} --plotFileType {params.plotFileType} --plotYLim \"{params.plotYlim}\" --outDir {output.outDir} > {log} 2> {log}"
 

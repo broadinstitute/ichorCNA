@@ -6,10 +6,10 @@ binSize:  1000000
 
 ## ichorCNA params ##
 ichorCNA_rscript:  ../runIchorCNA.R
-ichorCNA_libdir:  ../../R/
-ichorCNA_datadir:  ../../inst/extdata/
+ichorCNA_gcWig: NULL
+ichorCNA_mapWig:  NULL
 ichorCNA_exons:  NULL
-ichorCNA_centromere:  ../../inst/extdata/GRCh37.p13_centromere_UCSC-gapTable.txt
+ichorCNA_centromere:  NULL
 ichorCNA_chrs:  c(1:22, \"X\")
 ichorCNA_chrTrain:  c(1:22)  
 ichorCNA_normal:  c(0.5)  
