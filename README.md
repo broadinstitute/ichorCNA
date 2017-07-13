@@ -3,9 +3,8 @@ ichorCNA is a tool for estimating the fraction of tumor in cell-free DNA from ul
 
 ## Table of Contents
 * [Description](#description)
-* [Installation](#installation)
-* [Usage](#usage)
 * [Contacts](#contacts)
+* [ichorCNA Wiki Page](#ichorcna-wiki-page)
 * [Acknowledgements](#acknowledgements)
 
 ## Description
@@ -19,48 +18,8 @@ The analysis workflow consists of 3 major tasks:
 2. Data normalization  
 3. CNA prediction and estimation of tumor fraction of cfDNA
 
-## Installation
-1. Using R devtools
-	```
-	install.packages("devtools")
-	library(devtools)
-	install_github("broadinstitute/ichorCNA")
-	```
-2. Manual installation  
-    a. Checkout the latest release of ichorCNA from GitHub  
-    ```
-    git clone git@github.com:broadinstitute/ichorCNA.git  
-    ```  
-    b. Install R dependencies (in R)  
-
-    ```
-    ## install from CRAN
-    install.packages("plyr") # version > 1.8.4
-    ## install packages from
-    source("https://bioconductor.org/biocLite.R")
-    biocLite("HMMcopy") # version >= 1.14.0
-    biocLite("GenomeInfoDb") # version >= 1.8.7
-    ```  
-
-    c. Install the ichorCNA R package  
-
-    ```
-    ## from the command line and in the directory where ichorCNA github was cloned.
-    R CMD INSTALL ichorCNA  
-    ```  
-        
-3. Other dependencies  
-  a. Install the HMMcopy suite from <http://compbio.bccrc.ca/software/hmmcopy/>  
-    Please follow instructions on the HMMcopy website.
-
-
-## Usage
-There are 2 main steps in the analysis workflow:
-1. Generating read count coverage information using `readCounter` from the HMMcopy suite.
-2. Copy number analysis and prediction of tumor fraction using ichorCNA R package.
-
-Both steps have been compiled into a Python Snakemake pipeline that accepts BAM files and performs all steps to generate ichorCNA results. **Please see [ichorCNA snakemake pipeline](scripts/snakemake).**
-
+## ichorCNA Wiki Page
+**For more details on usage/pipelines, outputs, and FAQs, please visit the [GitHub Wiki page for ichorCNA](https://github.com/broadinstitute/ichorCNA/wiki)**
 
 ## Contacts
 **Gavin Ha, Ph.D.** <gavinha@broadinstitute.org>  
