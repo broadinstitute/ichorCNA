@@ -119,21 +119,21 @@ if (substr(tumour_file,nchar(tumour_file)-2,nchar(tumour_file)) == "wig") {
 } else {
   wigFiles <- read.delim(tumour_file, header=F, as.is=T)
 }
-
+save.image()
 ## FILTER BY EXONS IF PROVIDED ##
 ## add gc and map to RangedData object ##
-if (!is.null(exons.bed) && exons.bed != "None" && exons.bed != "NULL"){
-  targetedSequences <- read.delim(exons.bed, header=F, sep="\t", skip=86)
-}else{
+if (is.null(exons.bed) || exons.bed == "None" || exons.bed == "NULL"){
   targetedSequences <- NULL
+}else{
+  targetedSequences <- read.delim(exons.bed, header=T, sep="\t")  
 }
 
 ## load PoN
-if (!is.null(normal_panel) && normal_panel != "None" && normal_panel != "NULL"){
-	panel <- readRDS(normal_panel) ## load in IRanges object
+if (is.null(normal_panel) || normal_panel == "None" || normal_panel == "NULL"){
+	normal_panel <- NULL
 }
 
-if (is.null(centromere) && centromere != "None" && centromere != "NULL"){ # no centromere file provided
+if (is.null(centromere) || centromere == "None" || centromere == "NULL"){ # no centromere file provided
 	centromere <- system.file("extdata", "GRCh37.p13_centromere_UCSC-gapTable.txt", 
 			package = "ichorCNA")
 }
@@ -155,11 +155,11 @@ for (i in 1:numSamples) {
   ## LOAD GC/MAP WIG FILES ###
 	# find the bin size and load corresponding wig files #
 	binSize <- as.data.frame(tumour_reads[1,])$width 
-	if (is.null(gcWig) && gcWig != "None" && gcWig != "NULL"){
+	if (is.null(gcWig) || gcWig == "None" || gcWig == "NULL"){
 		gcWig <- system.file("extdata", paste0("gc_hg19_", binSize / 1000, "kb.wig"), 
 				package = "ichorCNA")
 	}
-	if (is.null(mapWig) && gcWig != "None" && gcWig != "NULL"){
+	if (is.null(mapWig) || mapWig == "None" || mapWig == "NULL"){
 		mapWig <- system.file("extdata", paste0("map_hg19_", binSize / 1000, "kb.wig"), 
 				package = "ichorCNA")
 	}
