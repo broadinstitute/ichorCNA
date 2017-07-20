@@ -232,6 +232,7 @@ loglik <- as.data.frame(matrix(NA, nrow = length(normal) * length(ploidy), ncol 
                  												"Frac_genome_subclonal", "Frac_CNA_subclonal", "loglik"))))
 counter <- 1
 compNames <- rep(NA, nrow(loglik))
+mainName <- rep(NA, length(normal) * length(ploidy))
 #### restart for purity and ploidy values ####
 for (n in normal){
   for (p in ploidy){
@@ -309,8 +310,9 @@ for (n in normal){
     	}
       ## plot solution ##
       outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide_", "n", n, "-p", p)
+      mainName[counter] <- paste0(id, ", n: ", n, ", p: ", p, ", log likelihood: ", signif(hmmResults.cor$results$loglik[hmmResults.cor$results$iter], digits = 4))
       plotGWSolution(hmmResults.cor, s=s, outPlotFile=outPlotFile, plotFileType=plotFileType, 
-                     plotYLim=plotYLim, estimateScPrevalence=estimateScPrevalence, main=id)
+                     plotYLim=plotYLim, estimateScPrevalence=estimateScPrevalence, main=mainName[counter])
     }
     iter <- hmmResults.cor$results$iter
     results[[counter]] <- hmmResults.cor
@@ -347,6 +349,26 @@ if (estimateScPrevalence){ ## sort but excluding solutions with too large % subc
 	}
 }else{#sort by likelihood only
   ind <- order(as.numeric(loglik[, "loglik"]), decreasing=TRUE) 
+}
+
+#new loop by order of solutions (ind)
+outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide_all_sols")
+cat("ind: ", ind, "\n")
+for(i in 1:length(ind)) {
+  hmmResults.cor <- results[[ind[i]]]
+  if(i == 1) {
+    plotGWSolution(hmmResults.cor, s=s, outPlotFile=outPlotFile, plotFileType=plotFileType, 
+                     plotYLim=plotYLim, estimateScPrevalence=estimateScPrevalence, turnDevOn = TRUE, turnDevOff = FALSE,
+                     main=mainName[ind[i]])
+  }else if(i == length(ind)) {
+    plotGWSolution(hmmResults.cor, s=s, outPlotFile=outPlotFile, plotFileType=plotFileType, 
+                     plotYLim=plotYLim, estimateScPrevalence=estimateScPrevalence, turnDevOn = FALSE, turnDevOff = TRUE,
+                     main=mainName[ind[i]])
+  }else {
+    plotGWSolution(hmmResults.cor, s=s, outPlotFile=outPlotFile, plotFileType=plotFileType,
+                     plotYLim=plotYLim, estimateScPrevalence=estimateScPrevalence, turnDevOn = FALSE, turnDevOff = FALSE,
+                     main=mainName[ind[i]])
+  }
 }
 
 hmmResults.cor <- results[[ind[1]]]
