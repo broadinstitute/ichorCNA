@@ -60,7 +60,6 @@ print(opt)
 options(scipen=0, stringsAsFactors=F)
 
 library(HMMcopy)
-library(ichorCNA)
 options(stringsAsFactors=FALSE)
 options(bitmapType='cairo')
 
@@ -110,13 +109,15 @@ if (!is.null(libdir)){
 	source(paste0(libdir,"/EM.R"))
 	source(paste0(libdir,"/output.R"))
 	source(paste0(libdir,"/plotting.R"))
+} else {
+    library(ichorCNA)
 }
 if (substr(tumour_file,nchar(tumour_file)-2,nchar(tumour_file)) == "wig") {
   wigFiles <- data.frame(cbind(patientID, tumour_file))
 } else {
   wigFiles <- read.delim(tumour_file, header=F, as.is=T)
 }
-save.image()
+
 ## FILTER BY EXONS IF PROVIDED ##
 ## add gc and map to RangedData object ##
 if (is.null(exons.bed) || exons.bed == "None" || exons.bed == "NULL"){
@@ -135,7 +136,6 @@ if (is.null(centromere) || centromere == "None" || centromere == "NULL"){ # no c
 			package = "ichorCNA")
 }
 centromere <- read.delim(centromere,header=T,stringsAsFactors=F,sep="\t")
-save.image(outImage)
 
 ## LOAD IN WIG FILES ##
 numSamples <- nrow(wigFiles)
@@ -236,6 +236,9 @@ mainName <- rep(NA, length(normal) * length(ploidy))
 #### restart for purity and ploidy values ####
 for (n in normal){
   for (p in ploidy){
+    if (n == 0.95 & p != 2) {
+        next
+    }
     logR <- as.data.frame(lapply(tumour_copy, "[[", "copy")) # NEED TO EXCLUDE CHR X #
     param <- getDefaultParameters(logR[valid & chrInd, , drop=F], maxCN = maxCN, includeHOMD = includeHOMD, 
                 ct.sc=scStates, ploidy = floor(p), e=txnE, e.same = 50, strength=txnStrength)
