@@ -217,8 +217,9 @@ plotCNlogRByChr <- function(dataIn, param = NULL, colName = "copy", segs=NULL, c
     }
   }else{  #plot for all chromosomes
     par(mar=c(spacing,8,2,2))
-    midpt <- (as.numeric(dataIn[,"end"]) + as.numeric(dataIn[,"start"]))/2
-    coord <- getGenomeWidePositions(dataIn[,"chr"],midpt)
+    #midpt <- (as.numeric(dataIn[,"end"]) + as.numeric(dataIn[,"start"]))/2
+    #coord <- getGenomeWidePositions(dataIn[,"chr"],midpt)
+    coord <- getGenomeWidePositions(dataIn[,"chr"],dataIn[,"end"])
     plot(coord$posns,as.numeric(dataIn[, colName]),
          col=cnCol[as.character(dataIn[,"event"])],pch=16,xaxt="n", ylim=yrange,
          xlim=c(1,as.numeric(coord$posns[length(coord$posns)])),
