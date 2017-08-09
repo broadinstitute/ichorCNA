@@ -23,8 +23,7 @@ The analysis workflow consists of 3 major tasks:
 
 ## Contacts
 **Gavin Ha, Ph.D.** <gavinha@broadinstitute.org>  
-**Justin Rhoades** 
-**Samuel Freeman**  
+**Justin Rhoades**, **Samuel Freeman**  
 **Blood Biopsy Group, Cancer Program** <bloodbiopsy@broadinstitute.org>  
 Broad Institute of MIT and Harvard  
 Koch Institute for integrative cancer research at MIT  
