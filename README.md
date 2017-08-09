@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/broadinstitute/ichorCNA.svg?branch=master)](https://travis-ci.org/broadinstitute/ichorCNA)
+
 # *ichorCNA*
 ichorCNA is a tool for estimating the fraction of tumor in cell-free DNA from ultra-low-pass whole genome sequencing (ULP-WGS, 0.1x coverage). 
 
