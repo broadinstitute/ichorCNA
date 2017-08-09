@@ -3,11 +3,8 @@
 # *ichorCNA*
 ichorCNA is a tool for estimating the fraction of tumor in cell-free DNA from ultra-low-pass whole genome sequencing (ULP-WGS, 0.1x coverage). 
 
-## Table of Contents
-* [Description](#description)
-* [Contacts](#contacts)
-* [ichorCNA Wiki Page](#ichorcna-wiki-page)
-* [Acknowledgements](#acknowledgements)
+## ichorCNA Wiki Page
+**For more details on usage/pipelines, outputs, and FAQs, please visit the [GitHub Wiki page for ichorCNA](https://github.com/broadinstitute/ichorCNA/wiki)**
 
 ## Description
 ichorCNA uses a probabilistic model, implemented as a hidden Markov model (HMM), to simultaneously segment the genome, predict large-scale copy number alterations, and estimate the tumor fraction of a ultra-low-pass whole genome sequencing sample (ULP-WGS). 
@@ -20,16 +17,8 @@ The analysis workflow consists of 3 major tasks:
 2. Data normalization  
 3. CNA prediction and estimation of tumor fraction of cfDNA
 
-## ichorCNA Wiki Page
-**For more details on usage/pipelines, outputs, and FAQs, please visit the [GitHub Wiki page for ichorCNA](https://github.com/broadinstitute/ichorCNA/wiki)**
-
 ## Contacts
-**Gavin Ha, Ph.D.** <gavinha@broadinstitute.org>  
-**Justin Rhoades**, **Samuel Freeman**  
-**Blood Biopsy Group, Cancer Program** <bloodbiopsy@broadinstitute.org>  
-Broad Institute of MIT and Harvard  
-Koch Institute for integrative cancer research at MIT  
-Dana-Farber Cancer Institute  
+Please contact [Gavin Ha](gavinha@broadinstitute.org) with any questions or feedback.
 
 ## Acknowledgements
 ichorCNA is developed and maintained by Gavin Ha, Justin Rhoades, and Sam Freeman.  
