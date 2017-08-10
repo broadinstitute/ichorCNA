@@ -18,7 +18,9 @@ The analysis workflow consists of 3 major tasks:
 3. CNA prediction and estimation of tumor fraction of cfDNA
 
 ## Contacts
-Please contact [Gavin Ha](gavinha@broadinstitute.org) with any questions or feedback.
+If you have any questions or feedback, please contact us at:  
+**Email:** <ichorcna@broadinstitute.org>  
+**Google Group:** <https://groups.google.com/a/broadinstitute.org/forum/?fromgroups&hl=en#!forum/ichorcna>
 
 ## Acknowledgements
 ichorCNA is developed and maintained by Gavin Ha, Justin Rhoades, and Sam Freeman.  
