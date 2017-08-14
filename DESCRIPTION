@@ -8,5 +8,5 @@ Maintainer: Gavin Ha <gavinha@broadinstitute.org>, Justin Rhoades <rhoades@broad
 Depends: R (>= 3.3.0)
 Imports: HMMcopy (>= 1.14.0), plyr (>= 1.8.4), GenomeInfoDb (>= 1.8.7)
 Description: A tool for estimating the fraction of tumor in ultra-low-pass whole genome sequencing (ULP-WGS) of cell-free DNA.
-License: MIT
+License: GPL-3
 URL: https://github.com/broadinstitute/ichorCNA
