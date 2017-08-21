@@ -66,7 +66,7 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir,
       outPlotFile <- paste0(outPlotFile, ".pdf")
       pdf(outPlotFile,width=7,height=7)
     }
-    plotBias(tumour_copy[[s]], pch = 20, cex = 0.5)
+    try(plotBias(tumour_copy[[s]], pch = 20, cex = 0.5), silent=TRUE)
     dev.off()
 
     ### PLOT TPDF ##

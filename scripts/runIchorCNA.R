@@ -18,12 +18,11 @@ library(optparse)
 option_list <- list(
   make_option(c("--WIG"), type = "character", help = "Path to tumor WIG file. Required."),
   make_option(c("--NORMWIG"), type = "character", default=NULL, help = "Path to normal WIG file. Default: [%default]"),
-  make_option(c("--gcWig"), type = "character", default=NULL, help = "Path to GC-content WIG file; if not provided then will use hg19 version from ichorCNA package. Default: [%default]"),
-  make_option(c("--mapWig"), type = "character", default=NULL, help = "Path to mappability score WIG file; if not provided then will use hg19 version from ichorCNA package. Default: [%default]"),
+  make_option(c("--gcWig"), type = "character", help = "Path to GC-content WIG file; Required"),
+  make_option(c("--mapWig"), type = "character", default=NULL, help = "Path to mappability score WIG file. Default: [%default]"),
   make_option(c("--normalPanel"), type="character", default=NULL, help="Median corrected depth from panel of normals. Default: [%default]"),
   make_option(c("--exons.bed"), type = "character", default=NULL, help = "Path to bed file containing exon regions. Default: [%default]"),
   make_option(c("--id"), type = "character", default="test", help = "Patient ID. Default: [%default]"),
-  #make_option(c("--gcOnly"), type="logical", default=FALSE, help = "TRUE if only correct for GC content bias"),
   make_option(c("--centromere"), type="character", default=NULL, help = "File containing Centromere locations; if not provided then will use hg19 version from ichorCNA package. Default: [%default]"),
   make_option(c("--rmCentromereFlankLength"), type="numeric", default=1e5, help="Length of region flanking centromere to remove. Default: [%default]"),
   make_option(c("--normal"), type="character", default="0.5", help = "Initial normal contamination; can be more than one value if additional normal initializations are desired. Default: [%default]"),
@@ -69,7 +68,6 @@ normal_file <- opt$NORMWIG
 gcWig <- opt$gcWig
 mapWig <- opt$mapWig
 normal_panel <- opt$normalPanel
-gcOnly <- as.logical(opt$gcOnly)  # {TRUE, FALSE}
 exons.bed <- opt$exons.bed  # "0" if none specified
 centromere <- opt$centromere
 flankLength <- opt$rmCentromereFlankLength
@@ -150,19 +148,19 @@ for (i in 1:numSamples) {
   tumour_reads <- wigToRangedData(wigFiles[i,2])
   
   ## LOAD GC/MAP WIG FILES ###
-	# find the bin size and load corresponding wig files #
-	binSize <- as.data.frame(tumour_reads[1,])$width 
-	if (is.null(gcWig) || gcWig == "None" || gcWig == "NULL"){
-		gcWig <- system.file("extdata", paste0("gc_hg19_", binSize / 1000, "kb.wig"), 
-				package = "ichorCNA")
-	}
-	if (is.null(mapWig) || mapWig == "None" || mapWig == "NULL"){
-		mapWig <- system.file("extdata", paste0("map_hg19_", binSize / 1000, "kb.wig"), 
-				package = "ichorCNA")
-	}
-	message("Reading GC and mappability files")
-	gc <- wigToRangedData(gcWig)
-	map <- wigToRangedData(mapWig)
+  # find the bin size and load corresponding wig files #
+  binSize <- as.data.frame(tumour_reads[1,])$width 
+  message("Reading GC and mappability files")
+  if (is.null(gcWig) || gcWig == "None" || gcWig == "NULL"){
+      stop("GC wig file is required")
+  }
+  gc <- wigToRangedData(gcWig)
+  if (is.null(mapWig) || mapWig == "None" || mapWig == "NULL"){
+      message("No mappability wig file input, excluding from correction")
+      map <- NULL
+  } else {
+      map <- wigToRangedData(mapWig)
+  }
   message("Correcting Tumour")
   
   counts <- loadReadCountsFromWig(tumour_reads, chrs = chrs, gc = gc, map = map, 
@@ -205,7 +203,8 @@ for (i in 1:numSamples) {
 	### OUTPUT FILE ###
 	### PUTTING TOGETHER THE COLUMNS IN THE OUTPUT ###
 	outMat <- as.data.frame(tumour_copy[[id]])
-	outMat <- outMat[,c(1,2,3,12)]
+	#outMat <- outMat[,c(1,2,3,12)]
+	outMat <- outMat[,c("space","start","end","copy")]
 	colnames(outMat) <- c("chr","start","end","log2_TNratio_corrected")
 	outFile <- paste0(outDir,"/",id,".correctedDepth.txt")
 	message(paste("Outputting to:", outFile))
@@ -356,7 +355,6 @@ if (estimateScPrevalence){ ## sort but excluding solutions with too large % subc
 
 #new loop by order of solutions (ind)
 outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide_all_sols")
-cat("ind: ", ind, "\n")
 for(i in 1:length(ind)) {
   hmmResults.cor <- results[[ind[i]]]
   if(i == 1) {

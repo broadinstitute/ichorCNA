@@ -37,8 +37,10 @@ filterEmptyChr <- function(gr){
 ##################################################
 ##### FUNCTION TO FILTER CENTROMERE REGIONS ######
 ##################################################
-excludeCentromere <- function(x, centromere, flankLength = 0){
+excludeCentromere <- function(x, centromere, flankLength = 0, genomeStyle = "NCBI"){
+	require(GenomeInfoDb)
 	colnames(centromere)[1:3] <- c("space","start","end")
+	centromere$space <- setGenomeStyle(centromere$space, genomeStyle)
 	centromere$start <- centromere$start - flankLength
 	centromere$end <- centromere$end + flankLength
 	centromere$space <- factor(centromere$space, levels = centromere$space)
@@ -96,12 +98,14 @@ loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, m
 	if (applyCorrection){
 	## correct read counts ##
     counts <- correctReadCounts(counts, chrNormalize = chrNormalize)
-    ## filter bins by mappability
-    counts <- filterByMappabilityScore(counts, map=map, mapScoreThres = mapScoreThres)
+    if (!is.null(map)) {
+      ## filter bins by mappability
+      counts <- filterByMappabilityScore(counts, map=map, mapScoreThres = mapScoreThres)
+    }
     ## get gender ##
     gender <- getGender(counts.raw, counts, gc, map, fracReadsInChrYForMale = fracReadsInChrYForMale, useChrY = useChrY,
                         centromere=centromere, flankLength=flankLength, targetedSequences = targetedSequences)
-  }
+    }
   return(list(counts = counts, gender = gender))
 }
 
@@ -202,8 +206,8 @@ normalizeByPanelOrMatchedNormal <- function(tumour_copy, chrs = c(1:22, "X", "Y"
 ##################################################
 correctReadCounts <- function(x, chrNormalize = c(1:22), mappability = 0.9, samplesize = 50000,
     verbose = TRUE) {
-  if (length(x$reads) == 0 | length(x$gc) == 0 | length(x$map) == 0) {
-    stop("Missing one of required columns: reads, gc, map")
+  if (length(x$reads) == 0 | length(x$gc) == 0) {
+    stop("Missing one of required columns: reads, gc")
   }
 	chrInd <- space(x) %in% chrNormalize
   if(verbose) { message("Applying filter on data...") }
@@ -214,8 +218,13 @@ correctReadCounts <- function(x, chrNormalize = c(1:22), mappability = 0.9, samp
   range <- quantile(x$reads[x$valid & chrInd], prob = c(0, 1 - routlier), na.rm = TRUE)
   doutlier <- 0.001
   domain <- quantile(x$gc[x$valid & chrInd], prob = c(doutlier, 1 - doutlier), na.rm = TRUE)
-  x$ideal[!x$valid | x$map < mappability | x$reads <= range[1] |
-    x$reads > range[2] | x$gc < domain[1] | x$gc > domain[2]] <- FALSE
+  if (length(x$map) != 0) {
+    x$ideal[!x$valid | x$map < mappability | x$reads <= range[1] |
+      x$reads > range[2] | x$gc < domain[1] | x$gc > domain[2]] <- FALSE
+  } else {
+    x$ideal[!x$valid | x$reads <= range[1] |
+      x$reads > range[2] | x$gc < domain[1] | x$gc > domain[2]] <- FALSE
+  }
 
   if (verbose) { message("Correcting for GC bias...") }
   set <- which(x$ideal & chrInd)
@@ -225,13 +234,17 @@ correctReadCounts <- function(x, chrNormalize = c(1:22), mappability = 0.9, samp
   final = loess(predict(rough, i) ~ i, span = 0.3)
   x$cor.gc <- x$reads / predict(final, x$gc)
 
-  if (verbose) { message("Correcting for mappability bias...") }
-  coutlier <- 0.01
-  range <- quantile(x$cor.gc[which(x$valid & chrInd)], prob = c(0, 1 - coutlier), na.rm = TRUE)
-  set <- which(x$cor.gc < range[2] & chrInd)
-  select <- sample(set, min(length(set), samplesize))
-  final = approxfun(lowess(x$map[select], x$cor.gc[select]))
-  x$cor.map <- x$cor.gc / final(x$map)
+  if (length(x$map) != 0) {
+    if (verbose) { message("Correcting for mappability bias...") }
+    coutlier <- 0.01
+    range <- quantile(x$cor.gc[which(x$valid & chrInd)], prob = c(0, 1 - coutlier), na.rm = TRUE)
+    set <- which(x$cor.gc < range[2] & chrInd)
+    select <- sample(set, min(length(set), samplesize))
+    final = approxfun(lowess(x$map[select], x$cor.gc[select]))
+    x$cor.map <- x$cor.gc / final(x$map)
+  } else {
+    x$cor.map <- x$cor.gc
+  }
   x$copy <- x$cor.map
   x$copy[x$copy <= 0] = NA
   x$copy <- log(x$copy, 2)
