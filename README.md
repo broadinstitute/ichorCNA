@@ -12,9 +12,10 @@ ichorCNA uses a probabilistic model, implemented as a hidden Markov model (HMM),
 The methodology and probabilistic model are described in:  
 Adalsteinsson, Ha, Freeman, et al. Scalable whole-exome sequencing of cell-free DNA reveals high concordance with metastatic tumors. (2017) Under review.
 
-The analysis workflow consists of 3 major tasks:  
-1. Computing read coverage from ULP-WGS  
-2. Data normalization  
+The analysis workflow consists of 2 tasks:  
+1. GC-content bias correction (using HMMcopy)  
+  a. Computing read coverage from ULP-WGS  
+  b. Data correction and normalization  
 3. CNA prediction and estimation of tumor fraction of cfDNA
 
 ## Contacts
