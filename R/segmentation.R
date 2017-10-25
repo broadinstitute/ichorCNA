@@ -221,6 +221,11 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9
 
 segmentData <- function(dataGR, states, convergedParams){
   if (sum(convergedParams$param$ct == 0) ==0){
+  	includeHOMD <- TRUE
+  }else{
+  	includeHOMD <- FALSE
+  }
+  if (!includeHOMD){
     names <- c("HETD","NEUT","GAIN","AMP","HLAMP",paste0(rep("HLAMP", 8), 2:25))
   }else{
     names <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP",paste0(rep("HLAMP", 8), 2:25))
@@ -255,7 +260,11 @@ segmentData <- function(dataGR, states, convergedParams){
       if (segDF[1, "space"] == segDF[numR, "space"]){
         segs[j, "end"] <- segDF[numR, "end"]
         segs[j, "median"] <- round(median(segDF$copy, na.rm = TRUE), digits = 6)
-        segs[j, "event"] <- names[segs[j, "copy.number"]]
+        if (includeHOMD){
+        	segs[j, "event"] <- names[segs[j, "copy.number"] + 1]
+        }else{
+        	segs[j, "event"] <- names[segs[j, "copy.number"]]
+        }
       }else{ # segDF contains 2 different chromosomes
         print(j)
       }                                      
