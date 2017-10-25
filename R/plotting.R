@@ -82,7 +82,7 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir,
 }
 
 
-plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf", 
+plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf", plotSegs = FALSE,
                            plotYLim=c(-2,2), estimateScPrevalence, main,
                            turnDevOn=TRUE, turnDevOff=TRUE){
     ## plot genome wide figures for each solution ##
@@ -102,7 +102,12 @@ plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf",
           pdf(outPlotFile,width=20,height=6)
       }	
     }
-    plotCNlogRByChr(hmmResults.cor$cna[[s]], segs = hmmResults.cor$results$segs[[s]], 
+    if (plotSegs){
+    	segsToUse <- hmmResults.cor$results$segs[[s]]
+    }else{
+    	segsToUse <- NULL
+    }
+    plotCNlogRByChr(hmmResults.cor$cna[[s]], segs = segsToUse, 
                     param = hmmResults.cor$results$param, colName = "logR", chr=NULL, 
                     ploidy = ploidyAll, cytoBand=T, yrange=plotYLim, main=main)  #ylim for plot
     annotStr <- paste0("Tumor Fraction: ", signif(purityEst, digits=4), ", Ploidy: ", signif(ploidyEst, digits=3))
