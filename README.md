@@ -10,7 +10,7 @@ ichorCNA is a tool for estimating the fraction of tumor in cell-free DNA from ul
 ichorCNA uses a probabilistic model, implemented as a hidden Markov model (HMM), to simultaneously segment the genome, predict large-scale copy number alterations, and estimate the tumor fraction of a ultra-low-pass whole genome sequencing sample (ULP-WGS). 
 
 The methodology and probabilistic model are described in:  
-Adalsteinsson, Ha, Freeman, et al. Scalable whole-exome sequencing of cell-free DNA reveals high concordance with metastatic tumors. (2017) Under review.
+Adalsteinsson, Ha, Freeman, et al. Scalable whole-exome sequencing of cell-free DNA reveals high concordance with metastatic tumors. (2017) Nature Communications Nov 6;8(1):1324. [doi: 10.1038/s41467-017-00965-y](https://doi.org/10.1038/s41467-017-00965-y)
 
 The analysis workflow consists of 2 tasks:  
 1. GC-content bias correction (using HMMcopy)  
