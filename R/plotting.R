@@ -82,7 +82,7 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir,
 }
 
 
-plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf", plotSegs = FALSE,
+plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf", plotSegs = TRUE,
                            plotYLim=c(-2,2), estimateScPrevalence, main,
                            turnDevOn=TRUE, turnDevOff=TRUE){
     ## plot genome wide figures for each solution ##
