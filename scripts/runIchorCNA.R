@@ -357,19 +357,17 @@ if (estimateScPrevalence){ ## sort but excluding solutions with too large % subc
 outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide_all_sols")
 for(i in 1:length(ind)) {
   hmmResults.cor <- results[[ind[i]]]
-  if(i == 1) {
-    plotGWSolution(hmmResults.cor, s=s, outPlotFile=outPlotFile, plotFileType=plotFileType, 
-                     plotYLim=plotYLim, estimateScPrevalence=estimateScPrevalence, turnDevOn = TRUE, turnDevOff = FALSE,
-                     main=mainName[ind[i]])
-  }else if(i == length(ind)) {
-    plotGWSolution(hmmResults.cor, s=s, outPlotFile=outPlotFile, plotFileType=plotFileType, 
-                     plotYLim=plotYLim, estimateScPrevalence=estimateScPrevalence, turnDevOn = FALSE, turnDevOff = TRUE,
-                     main=mainName[ind[i]])
-  }else {
-    plotGWSolution(hmmResults.cor, s=s, outPlotFile=outPlotFile, plotFileType=plotFileType,
-                     plotYLim=plotYLim, estimateScPrevalence=estimateScPrevalence, turnDevOn = FALSE, turnDevOff = FALSE,
-                     main=mainName[ind[i]])
+  turnDevOff <- FALSE
+  turnDevOn <- FALSE
+  if (i == 1){
+  	turnDevOn <- TRUE
   }
+  if (i == length(ind)){
+  	turnDevOff <- TRUE
+  }
+  plotGWSolution(hmmResults.cor, s=s, outPlotFile=outPlotFile, plotFileType="pdf", 
+                     plotYLim=plotYLim, estimateScPrevalence=estimateScPrevalence, 
+                     turnDevOn = turnDevOn, turnDevOff = turnDevOff, main=mainName[ind[i]])
 }
 
 hmmResults.cor <- results[[ind[1]]]
