@@ -221,9 +221,9 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9
 
 segmentData <- function(dataGR, states, convergedParams){
   if (sum(convergedParams$param$ct == 0) ==0){
-  	includeHOMD <- TRUE
-  }else{
   	includeHOMD <- FALSE
+  }else{
+  	includeHOMD <- TRUE
   }
   if (!includeHOMD){
     names <- c("HETD","NEUT","GAIN","AMP","HLAMP",paste0(rep("HLAMP", 8), 2:25))

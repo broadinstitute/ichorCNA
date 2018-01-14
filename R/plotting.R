@@ -13,7 +13,7 @@
 ## plot solutions for all samples
 plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir, 
                           numSamples=1, plotFileType="pdf", plotYLim=c(-2,2),
-                          estimateScPrevalence, maxCN){
+                          estimateScPrevalence=FALSE, maxCN){
   ## for each sample ##
   for (s in 1:numSamples){
     iter <- hmmResults.cor$results$iter
@@ -259,7 +259,7 @@ plotCNlogRByChr <- function(dataIn, param = NULL, colName = "copy", segs=NULL, c
       }
     }
     lines(as.numeric(c(1,coord$posns[length(coord$posns)])),rep(0,2),type="l",col="grey",lwd=2)
-    plotChrLines(dataIn[,"chr"],coordEnd$chrBkpt,yrange)
+    plotChrLines(dataIn[,"chr"],coord$chrBkpt,yrange)
   }
 }
 
@@ -311,6 +311,7 @@ plotChrLines <- function(chrs,chrBkpt,yrange){
   }
   numLines <- length(chrBkpt)
   mid <- (chrBkpt[1:(numLines-1)]+chrBkpt[2:numLines])/2
+  chrs <- as.vector(chrs)
   chrs[chrs=="X"] <- 23; chrs[chrs=="Y"] <- 24;
   chrsToShow <- sort(unique(as.numeric(chrs)))
   chrsToShow[chrsToShow==23] <- "X"; chrsToShow[chrsToShow==24] <- "Y";
