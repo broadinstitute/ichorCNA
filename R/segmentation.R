@@ -63,7 +63,7 @@ HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL,
   viterbiResults <- runViterbi(convergedParams, chr)
   
   # setup columns for multiple samples #
-  segs <- segmentData(x, viterbiResults$states, convergedParams)
+  segs <- segmentData(x, validInd, viterbiResults$states, convergedParams)
   #output$segs <- processSegments(output$segs, chr, start(x), end(x), x$DataToUse)
   names <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP",paste0(rep("HLAMP", 8), 2:25))
   #if (c(0) %in% param$ct){ #if state 0 HOMD is IN params#
@@ -219,7 +219,7 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9
 
 
 
-segmentData <- function(dataGR, states, convergedParams){
+segmentData <- function(dataGR, validInd, states, convergedParams){
   if (sum(convergedParams$param$ct == 0) ==0){
   	includeHOMD <- FALSE
   }else{
@@ -230,19 +230,22 @@ segmentData <- function(dataGR, states, convergedParams){
   }else{
     names <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP",paste0(rep("HLAMP", 8), 2:25))
   }
+  states <- states[validInd]
   S <- length(dataGR)
   jointStates <- convergedParams$param$jointCNstates
   jointSCstatus <- convergedParams$param$jointSCstatus
   colNames <- c("space", "start", "end", "copy")
   segList <- list()
   for (i in 1:S){
-    rleResults <- t(sapply(unique(dataGR[[i]]$space), function(x){
-      ind <- dataGR[[i]]$space == x
+  	id <- names(dataGR)[i]
+  	dataIn <- dataGR[[i]][validInd, ]
+    rleResults <- t(sapply(unique(dataIn$space), function(x){
+      ind <- dataIn$space == x
       r <- rle(states[ind])
     }))
     rleLengths <- unlist(rleResults[, "lengths"])
     rleValues <- unlist(rleResults[, "values"])
-    sampleDF <- as.data.frame(dataGR[[i]])
+    sampleDF <- as.data.frame(dataIn)
     numSegs <- length(rleLengths)
     segs <- as.data.frame(matrix(NA, ncol = 7, nrow = numSegs, 
                    dimnames = list(c(), c("chr", "start", "end", "state", "event", "median", "copy.number"))))
@@ -269,7 +272,7 @@ segmentData <- function(dataGR, states, convergedParams){
         print(j)
       }                                      
     }
-    segList[[names(dataGR)[i]]] <- segs
+    segList[[id]] <- segs
   }
   return(segList)
 }
