@@ -183,7 +183,7 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
   phi <- phi[, 1:i, drop=FALSE]
   mus <- mus[, , 1:i, drop=FALSE]
   lambdas <- lambdas[, , 1:i, drop=FALSE]
-  piG <- piG[, 1:i]
+  piG <- piG[, 1:i, drop=FALSE]
   loglik = loglik[1:i]
   
   output <- vector('list', 0);
