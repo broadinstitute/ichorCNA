@@ -428,7 +428,7 @@ stLikelihood <- function(n, sp, phi, lambda, params, D, rho){
   lik <- 0
   # Recalculate the likelihood
   lambdaKS <- as.matrix(expand.grid(as.data.frame(lambda)))
-  mus <- as.matrix(get2and3ComponentMixture(param$jointCNstates, param$jointSCstatus, n, sp, phi))
+  mus <- as.matrix(get2and3ComponentMixture(params$jointCNstates, params$jointSCstatus, n, sp, phi))
   for (ks in 1:KS) {
     probs <- log(tdistPDF(D, mus[ks, ], lambdaKS[ks, ], params$nu))
     # multiply across samples for each data point to get joint likelihood.
