@@ -192,6 +192,11 @@ normalizeByPanelOrMatchedNormal <- function(tumour_copy, chrs = c(1:22, "X", "Y"
 	if (!is.null(normal_panel)){
 		panel <- readRDS(normal_panel) ## load in IRanges object
 		panel <- keepChr(panel, chr = chrs)
+        # intersect bins in sample and panel
+        hits <- findOverlaps(tumour_copy, panel, type="equal")
+        tumour_copy <- tumour_copy[queryHits(hits),]
+        panel <- panel[subjectHits(hits),]
+        # subtract out panel median
 		tumour_copy$copy <- tumour_copy$copy - panel$Median
 		# if male, then shift chrX by +chrXMedian.MNnorm
 		if (gender == "male" && exists("chrXMedian.MNnorm")){
