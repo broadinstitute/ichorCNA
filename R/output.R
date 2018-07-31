@@ -6,7 +6,7 @@
 # contact: <gavinha@broadinstitute.org>
 # ULP-WGS website: http://www.broadinstitute.org/~gavinha/ULP-WGS/
 # HMMcopy website: http://compbio.bccrc.ca/software/hmmcopy/ and https://www.bioconductor.org/packages/release/bioc/html/HMMcopy.html
-# date:   Oct 26, 2016
+# date:   July 25, 2018
 # description: Hidden Markov model (HMM) to analyze Ultra-low pass whole genome sequencing (ULP-WGS) data.
 # This script is the main script to run the HMM.
 
@@ -57,7 +57,7 @@ outputHMM <- function(cna, segs, results, patientID = NULL, outDir = "."){
       cnaout <- merge(cnaout, cnaTmp, by = c("chr", "start", "end"))
     }
   }
-  cnaout$chr <- factor(cnaout$chr, levels = c(as.character(1:22), "X", "Y"))
+  cnaout$chr <- factor(cnaout$chr, levels = unique(cna[[1]]$chr))
   cnaout <- cnaout[order(cnaout[, 1], cnaout[, 2], cnaout[, 3]), ]
   cna_out = paste(outDir,"/", patientID,".cna.seg",sep="")
   message("Outputting to bin-level results to ", cna_out)

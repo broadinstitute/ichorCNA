@@ -233,8 +233,9 @@ plotCNlogRByChr <- function(dataIn, segs, param = NULL, colName = "copy", plotSe
          #main=dataIn[1,"sample"])
          main=main)
     #plot segments
-    coordEnd <- getGenomeWidePositions(segs[, "chr"], segs[, "end"])
+    
     if (plotSegs){      
+      coordEnd <- getGenomeWidePositions(segs[, "chr"], segs[, "end"])
       coordStart <- coordEnd$posns - (segs[, "end"] - segs[, "start"] + 1)
       xlim <- as.numeric(c(1, coordEnd$posns[length(coordEnd$posns)]))
       #col <- cnCol[as.numeric(segs[, "state"] + 1)]
@@ -259,7 +260,11 @@ plotCNlogRByChr <- function(dataIn, segs, param = NULL, colName = "copy", plotSe
       }
     }
     lines(as.numeric(c(1,coord$posns[length(coord$posns)])),rep(0,2),type="l",col="grey",lwd=2)
-    plotChrLines(dataIn[,"chr"],coordEnd$chrBkpt,yrange)
+    if (plotSegs){
+   	  plotChrLines(dataIn[,"chr"],coordEnd$chrBkpt,yrange)
+   	}else{
+   		plotChrLines(dataIn[,"chr"],coord$chrBkpt,yrange)
+   	}
   }
 }
 
@@ -311,7 +316,7 @@ plotChrLines <- function(chrs,chrBkpt,yrange){
   }
   numLines <- length(chrBkpt)
   mid <- (chrBkpt[1:(numLines-1)]+chrBkpt[2:numLines])/2
-  chrs <- as.vector(chrs)
+  chrs <- mapSeqlevels(as.vector(chrs), style = "NCBI")
   chrs[chrs=="X"] <- 23; chrs[chrs=="Y"] <- 24;
   chrsToShow <- sort(unique(as.numeric(chrs)))
   chrsToShow[chrsToShow==23] <- "X"; chrsToShow[chrsToShow==24] <- "Y";

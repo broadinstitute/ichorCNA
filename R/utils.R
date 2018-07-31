@@ -87,7 +87,7 @@ loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, m
 	
 	# remove centromeres
 	if (!is.null(centromere)){ 
-		counts <- excludeCentromere(counts, centromere, flankLength = flankLength)
+		counts <- excludeCentromere(counts, centromere, flankLength = flankLength, genomeStyle=genomeStyle)
 	}
 	# keep targeted sequences
 	if (!is.null(targetedSequences)){
@@ -140,12 +140,15 @@ selectFemaleChrXSolution <- function(){
 ##################################################
 getGender <- function(rawReads, normReads, gc, map, fracReadsInChrYForMale = 0.002, useChrY = TRUE,
 											centromere=NULL, flankLength=1e5, targetedSequences=NULL){
-	chrXInd <- normReads$space == "X"
+	chrXStr <- grep("X", unique(normReads$space), value = TRUE)
+	chrYStr <- grep("Y", unique(rawReads$space), value = TRUE)
+	chrXInd <- normReads$space == chrXStr
 	if (sum(chrXInd) > 1){ ## if no X 
 		chrXMedian <- median(normReads[chrXInd, ]$copy, na.rm = TRUE)
 		# proportion of reads in chrY #
-		tumY <- loadReadCountsFromWig(rawReads, chrs="Y", gc=gc, map=map, applyCorrection = FALSE,
-				centromere=centromere, flankLength=flankLength, targetedSequences=targetedSequences)$counts
+		tumY <- loadReadCountsFromWig(rawReads, chrs=chrYStr, genomeStyle=genomeStyle,
+				gc=gc, map=map, applyCorrection = FALSE, centromere=centromere, flankLength=flankLength, 
+				targetedSequences=targetedSequences)$counts
 		chrYCov <- sum(tumY$reads) / sum(rawReads$value)
 		if (chrXMedian < -0.5){
 			if (useChrY && (chrYCov < fracReadsInChrYForMale)){ #trumps chrX if using chrY
