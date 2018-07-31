@@ -99,7 +99,7 @@ outImage <- paste0(outDir,"/", patientID,".RData")
 chrs <- eval(parse(text = opt$chrs))
 #chrs <- c(chrs, "Y")
 chrTrain <- eval(parse(text=opt$chrTrain))
-chrNormalize <- eval(parse(text=opt$chrNormalize))
+chrNormalize <- chrTrain #eval(parse(text=opt$chrNormalize))
 
 if (!is.null(libdir)){
 	source(paste0(libdir,"/utils.R"))
