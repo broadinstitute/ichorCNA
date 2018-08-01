@@ -9,7 +9,7 @@
 
 # ichorCNA: https://github.com/broadinstitute/ichorCNA
 # HMMcopy website: http://compbio.bccrc.ca/software/hmmcopy/ and https://www.bioconductor.org/packages/release/bioc/html/HMMcopy.html
-# date:   March 29, 2017
+# date:   August 1, 2018
 # description: Hidden Markov model (HMM) to analyze Ultra-low pass whole genome sequencing (ULP-WGS) data.
 # This script is the main script to run the HMM.
 
@@ -43,6 +43,7 @@ option_list <- list(
   make_option(c("--chrNormalize"), type="character", default="c(1:22)", help = "Specify chromosomes to normalize GC/mappability biases. Default: [%default]"),
   make_option(c("--chrTrain"), type="character", default="c(1:22)", help = "Specify chromosomes to estimate params. Default: [%default]"),
   make_option(c("--chrs"), type="character", default="c(1:22,\"X\")", help = "Specify chromosomes to analyze. Default: [%default]"),
+  make_option(c("--genomeStyle"), type = "character", default = "NCBI", help = "NCBI or UCSC chromosome naming convention; use UCSC if desired output is to have \"chr\" string. [Default: %default]"),
   make_option(c("--normalizeMaleX"), type="logical", default=TRUE, help = "If male, then normalize chrX by median. Default: [%default]"),
   make_option(c("--fracReadsInChrYForMale"), type="numeric", default=0.001, help = "Threshold for fraction of reads in chrY to assign as male. Default: [%default]"),
   make_option(c("--includeHOMD"), type="logical", default=FALSE, help="If FALSE, then exclude HOMD state. Useful when using large bins (e.g. 1Mb). Default: [%default]"),
@@ -59,6 +60,7 @@ print(opt)
 options(scipen=0, stringsAsFactors=F)
 
 library(HMMcopy)
+library(GenomeInfoDb)
 options(stringsAsFactors=FALSE)
 options(bitmapType='cairo')
 
@@ -96,17 +98,21 @@ plotFileType <- opt$plotFileType
 plotYLim <- eval(parse(text=opt$plotYLim))
 gender <- NULL
 outImage <- paste0(outDir,"/", patientID,".RData")
-chrs <- eval(parse(text = opt$chrs))
-#chrs <- c(chrs, "Y")
-chrTrain <- eval(parse(text=opt$chrTrain))
-chrNormalize <- chrTrain #eval(parse(text=opt$chrNormalize))
+genomeStyle <- opt$genomeStyle
+chrs <- as.character(eval(parse(text = opt$chrs)))
+chrTrain <- as.character(eval(parse(text=opt$chrTrain))); 
+chrNormalize <- as.character(eval(parse(text=opt$chrNormalize))); 
+seqlevelsStyle(chrs) <- genomeStyle
+seqlevelsStyle(chrNormalize) <- genomeStyle
+seqlevelsStyle(chrTrain) <- genomeStyle
 
-if (!is.null(libdir)){
-	source(paste0(libdir,"/utils.R"))
-	source(paste0(libdir,"/segmentation.R"))
-	source(paste0(libdir,"/EM.R"))
-	source(paste0(libdir,"/output.R"))
-	source(paste0(libdir,"/plotting.R"))
+
+if (!is.null(libdir) && libdir != "None"){
+	source(paste0(libdir,"/R/utils.R"))
+	source(paste0(libdir,"/R/segmentation.R"))
+	source(paste0(libdir,"/R/EM.R"))
+	source(paste0(libdir,"/R/output.R"))
+	source(paste0(libdir,"/R/plotting.R"))
 } else {
     library(ichorCNA)
 }
@@ -134,7 +140,7 @@ if (is.null(centromere) || centromere == "None" || centromere == "NULL"){ # no c
 			package = "ichorCNA")
 }
 centromere <- read.delim(centromere,header=T,stringsAsFactors=F,sep="\t")
-
+save.image(outImage)
 ## LOAD IN WIG FILES ##
 numSamples <- nrow(wigFiles)
 tumour_counts <- list()
@@ -166,6 +172,7 @@ for (i in 1:numSamples) {
   counts <- loadReadCountsFromWig(tumour_reads, chrs = chrs, gc = gc, map = map, 
                                        centromere = centromere, flankLength = flankLength, 
                                        targetedSequences = targetedSequences, 
+                                       genomeStyle = genomeStyle,
                                        chrNormalize = chrNormalize, mapScoreThres = 0.9)
   tumour_copy[[id]] <- counts$counts #as(counts$counts, "GRanges")
   gender <- counts$gender
@@ -176,7 +183,7 @@ for (i in 1:numSamples) {
 		message("Correcting Normal")
 		counts <- loadReadCountsFromWig(normal_reads, chrs=chrs, gc=gc, map=map, 
 				centromere=centromere, flankLength = flankLength, targetedSequences=targetedSequences,
-				chrNormalize = chrNormalize, mapScoreThres = 0.9)
+				genomeStyle = genomeStyle, chrNormalize = chrNormalize, mapScoreThres = 0.9)
 		normal_copy <- counts$counts #as(counts$counts, "GRanges")
 		gender.normal <- counts$gender
 	}else{
@@ -221,6 +228,7 @@ if (length(tumour_copy) >= 2) {
     valid <- valid & tumour_copy[[i]]$valid 
   } 
 }
+save.image(outImage)
 
 ### RUN HMM ###
 ## store the results for different normal and ploidy solutions ##

@@ -1,9 +1,9 @@
 #!/bin/bash -l
 
-#$ -q short
+#$ -q broad
 #$ -cwd
 #$ -V
-#$ -l h_vmem=12G
+#$ -l h_vmem=4G,h_rt=100:00:00
 #$ -pe smp 1
 #$ -binding linear:1
 #$ -o logs/cluster/

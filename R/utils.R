@@ -72,8 +72,8 @@ setGenomeStyle <- function(x, genomeStyle = "NCBI", species = "Homo_sapiens"){
 loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, map = NULL, centromere = NULL, flankLength = 100000, targetedSequences = NULL, genomeStyle = "NCBI", applyCorrection = TRUE, mapScoreThres = 0.9, chrNormalize = c(1:22, "X", "Y"), fracReadsInChrYForMale = 0.002, useChrY = TRUE){
 	require(HMMcopy)
 	require(GenomeInfoDb)
-	counts.raw <- counts
 	names(counts) <- setGenomeStyle(names(counts), genomeStyle)
+	counts.raw <- counts	
 	counts <- keepChr(counts, chrs)
 	if (!is.null(gc)){ 
 		names(gc) <- setGenomeStyle(names(gc), genomeStyle)
@@ -87,10 +87,12 @@ loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, m
 	
 	# remove centromeres
 	if (!is.null(centromere)){ 
+		centromere$Chr <- setGenomeStyle(centromere$Chr, genomeStyle)
 		counts <- excludeCentromere(counts, centromere, flankLength = flankLength, genomeStyle=genomeStyle)
 	}
 	# keep targeted sequences
 	if (!is.null(targetedSequences)){
+		targetedSequences[,1] <- setGenomeStyle(targetedSequences[,1], genomeStyle)
 		countsExons <- filterByTargetedSequences(counts, targetedSequences)
 		counts <- counts[countsExons$ix,]
 	}
@@ -171,6 +173,8 @@ getGender <- function(rawReads, normReads, gc, map, fracReadsInChrYForMale = 0.0
 	
 normalizeByPanelOrMatchedNormal <- function(tumour_copy, chrs = c(1:22, "X", "Y"), 
       normal_panel = NULL, normal_copy = NULL, gender = "female", normalizeMaleX = FALSE){
+    genomeStyle <- seqlevelsStyle(as.vector(tumour_copy$space))[1]
+    seqlevelsStyle(chrs) <- genomeStyle
  	### COMPUTE LOG RATIO FROM MATCHED NORMAL OR PANEL AND HANDLE CHRX ###
 	## NO PANEL
 	# matched normal but NO panel, then just normalize by matched normal (WES)
@@ -195,6 +199,7 @@ normalizeByPanelOrMatchedNormal <- function(tumour_copy, chrs = c(1:22, "X", "Y"
 	# PANEL, then normalize by panel instead of matched normal (ULP and WES)
 	if (!is.null(normal_panel)){
 		panel <- readRDS(normal_panel) ## load in IRanges object
+		names(panel) <- setGenomeStyle(names(panel), genomeStyle)
 		panel <- keepChr(panel, chr = chrs)
         # intersect bins in sample and panel
         hits <- findOverlaps(tumour_copy, panel, type="equal")
