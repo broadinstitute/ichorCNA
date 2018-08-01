@@ -104,7 +104,8 @@ loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, m
     }
     ## get gender ##
     gender <- getGender(counts.raw, counts, gc, map, fracReadsInChrYForMale = fracReadsInChrYForMale, useChrY = useChrY,
-                        centromere=centromere, flankLength=flankLength, targetedSequences = targetedSequences)
+                        centromere=centromere, flankLength=flankLength, targetedSequences = targetedSequences,
+                        genomeStyle = genomeStyle)
     }
   return(list(counts = counts, gender = gender))
 }
@@ -139,7 +140,7 @@ selectFemaleChrXSolution <- function(){
 ### FUNCTION TO DETERMINE GENDER #################
 ##################################################
 getGender <- function(rawReads, normReads, gc, map, fracReadsInChrYForMale = 0.002, useChrY = TRUE,
-											centromere=NULL, flankLength=1e5, targetedSequences=NULL){
+					  centromere=NULL, flankLength=1e5, targetedSequences=NULL, genomeStyle="NCBI"){
 	chrXStr <- grep("X", unique(normReads$space), value = TRUE)
 	chrYStr <- grep("Y", unique(rawReads$space), value = TRUE)
 	chrXInd <- normReads$space == chrXStr
