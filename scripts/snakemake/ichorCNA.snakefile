@@ -19,7 +19,7 @@ rule read_counter:
 	resources:
 		mem=4
 	log:
-		"logs/readDepth/{samples}.log"
+		"logs/readDepth/{samples}.bin{binSize}.log"
 	shell:
 		"{params.readCounter} {input} -c {params.chrs} -w {params.binSize} -q {params.qual} > {output} 2> {log}"
 
