@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 library(HMMcopy)
 library(optparse)
 library(ichorCNA)
