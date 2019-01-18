@@ -180,7 +180,7 @@ normalizeByPanelOrMatchedNormal <- function(tumour_copy, chrs = c(1:22, "X", "Y"
 	## NO PANEL
 	# matched normal but NO panel, then just normalize by matched normal (WES)
 	## WHY DO WE NOT NORMALIZE BY NORMAL WITH PANEL? ##
-	chrXInd <- tumour_copy$space == "X"
+	chrXInd <- grep("X", tumour_copy$space)
 	chrXMedian <- median(tumour_copy[chrXInd, ]$copy, na.rm = TRUE)
 	if (!is.null(normal_copy) && is.null(normal_panel)){
 			message("Normalizing Tumour by Normal")
