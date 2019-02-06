@@ -1,0 +1,20 @@
+__default__:
+    q:  broad
+    h_vmem: 4G
+    h_rt:   1:0:0
+    pe: smp 1
+    binding:    linear:1
+
+getHETsites:
+    h_vmem:    20G
+    h_rt:    15:00:00
+    
+ichorCNA:
+    h_vmem: 10G
+    h_rt:   100:0:0
+    
+runTitanCNA:
+    h_vmem: 16G
+    h_rt:   300:0:0
+    pe: smp 1
+    binding:    linear:1
