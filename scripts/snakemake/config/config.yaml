@@ -17,6 +17,8 @@ ichorCNA_mapWig:  ../../inst/extdata/map_hg19_1000kb.wig
 ichorCNA_exons:  NULL
 ichorCNA_centromere:  ../../inst/extdata/GRCh37.p13_centromere_UCSC-gapTable.txt
 ichorCNA_chrs:  c(1:22, \"X\")
+ichorCNA_genomeStyle:  NCBI
+
 # chrs used for training ichorCNA parameters, e.g. tumor fraction. 
 ichorCNA_chrTrain:  c(1:22)
 # non-tumor fraction parameter restart values; higher values should be included for cfDNA
