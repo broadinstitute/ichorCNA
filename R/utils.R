@@ -69,7 +69,7 @@ setGenomeStyle <- function(x, genomeStyle = "NCBI", species = "Homo_sapiens"){
     return(x)
 }
 
-loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, map = NULL, centromere = NULL, flankLength = 100000, targetedSequences = NULL, genomeStyle = "NCBI", applyCorrection = TRUE, mapScoreThres = 0.9, chrNormalize = c(1:22, "X", "Y"), fracReadsInChrYForMale = 0.002, useChrY = TRUE){
+loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, map = NULL, centromere = NULL, flankLength = 100000, targetedSequences = NULL, genomeStyle = "NCBI", applyCorrection = TRUE, mapScoreThres = 0.9, chrNormalize = c(1:22, "X", "Y"), fracReadsInChrYForMale = 0.002, chrXMedianForMale = -0.5, useChrY = TRUE){
 	require(HMMcopy)
 	require(GenomeInfoDb)
 	names(counts) <- setGenomeStyle(names(counts), genomeStyle)
@@ -105,7 +105,8 @@ loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, m
       counts <- filterByMappabilityScore(counts, map=map, mapScoreThres = mapScoreThres)
     }
     ## get gender ##
-    gender <- getGender(counts.raw, counts, gc, map, fracReadsInChrYForMale = fracReadsInChrYForMale, useChrY = useChrY,
+    gender <- getGender(counts.raw, counts, gc, map, fracReadsInChrYForMale = fracReadsInChrYForMale, 
+    					chrXMedianForMale = chrXMedianForMale, useChrY = useChrY,
                         centromere=centromere, flankLength=flankLength, targetedSequences = targetedSequences,
                         genomeStyle = genomeStyle)
     }
@@ -141,7 +142,7 @@ selectFemaleChrXSolution <- function(){
 ##################################################
 ### FUNCTION TO DETERMINE GENDER #################
 ##################################################
-getGender <- function(rawReads, normReads, gc, map, fracReadsInChrYForMale = 0.002, useChrY = TRUE,
+getGender <- function(rawReads, normReads, gc, map, fracReadsInChrYForMale = 0.002, chrXMedianForMale = -0.5, useChrY = TRUE,
 					  centromere=NULL, flankLength=1e5, targetedSequences=NULL, genomeStyle="NCBI"){
 	chrXStr <- grep("X", unique(normReads$space), value = TRUE)
 	chrYStr <- grep("Y", unique(rawReads$space), value = TRUE)
@@ -153,7 +154,7 @@ getGender <- function(rawReads, normReads, gc, map, fracReadsInChrYForMale = 0.0
 				gc=gc, map=map, applyCorrection = FALSE, centromere=centromere, flankLength=flankLength, 
 				targetedSequences=targetedSequences)$counts
 		chrYCov <- sum(tumY$reads) / sum(rawReads$value)
-		if (chrXMedian < -0.5){
+		if (chrXMedian < chrXMedianForMale){
 			if (useChrY && (chrYCov < fracReadsInChrYForMale)){ #trumps chrX if using chrY
 					gender <- "female"  
 			}else{
@@ -179,7 +180,7 @@ normalizeByPanelOrMatchedNormal <- function(tumour_copy, chrs = c(1:22, "X", "Y"
 	## NO PANEL
 	# matched normal but NO panel, then just normalize by matched normal (WES)
 	## WHY DO WE NOT NORMALIZE BY NORMAL WITH PANEL? ##
-	chrXInd <- tumour_copy$space == "X"
+	chrXInd <- grep("X", tumour_copy$space)
 	chrXMedian <- median(tumour_copy[chrXInd, ]$copy, na.rm = TRUE)
 	if (!is.null(normal_copy) && is.null(normal_panel)){
 			message("Normalizing Tumour by Normal")
