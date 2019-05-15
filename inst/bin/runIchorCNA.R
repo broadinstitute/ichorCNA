@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 # file:   ichorCNA.R
 # author: Gavin Ha, Ph.D.
 #               Dana-Farber Cancer Institute
