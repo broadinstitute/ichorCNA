@@ -14,9 +14,9 @@ HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL,
     chrTrain = c(1:22), maxiter = 50, estimateNormal = TRUE, estimatePloidy = TRUE, 
     estimatePrecision = TRUE, estimateSubclone = TRUE, estimateTransition = TRUE,
     estimateInitDist = TRUE, logTransform = FALSE, verbose = TRUE) {
-  chr <- space(x[[1]])
+  chr <- as.factor(seqnames(x[[1]]))
 	# setup columns for multiple samples #
-	dataMat <- as.matrix(as.data.frame(lapply(x, "[[", dataType)))
+	dataMat <- as.matrix(as.data.frame(lapply(x, function(y) { mcols(x[[1]])[, dataType] })))
 	
 	# normalize by median and log data #
 	if (logTransform){
@@ -26,7 +26,7 @@ HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL,
 	}
 	## update variable x with loge instead of log2
   for (i in 1:length(x)){
-    x[[i]]$copy <- dataMat[, i]
+    mcols(x[[i]])[, dataType] <- dataMat[, i]
   }
   if (!is.null(chrTrain)) {
 		chrInd <- chr %in% chrTrain
@@ -80,7 +80,7 @@ HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL,
     copyNumber <- param$jointCNstates[viterbiResults$state, s]
     subclone.status <- param$jointSCstatus[viterbiResults$state, s]
   	cnaList[[id]] <- data.frame(cbind(sample = as.character(id), 
-                  chr = as.character(space(x[[s]])),	
+                  chr = as.character(seqnames(x[[s]])),	
                   start = start(x[[s]]), end = end(x[[s]]), 
                   copy.number = copyNumber,
                   event = names[copyNumber + 1], 
@@ -234,13 +234,13 @@ segmentData <- function(dataGR, validInd, states, convergedParams){
   S <- length(dataGR)
   jointStates <- convergedParams$param$jointCNstates
   jointSCstatus <- convergedParams$param$jointSCstatus
-  colNames <- c("space", "start", "end", "copy")
+  colNames <- c("seqnames", "start", "end", "copy")
   segList <- list()
   for (i in 1:S){
   	id <- names(dataGR)[i]
   	dataIn <- dataGR[[i]][validInd, ]
-    rleResults <- t(sapply(unique(dataIn$space), function(x){
-      ind <- dataIn$space == x
+    rleResults <- t(sapply(runValue(seqnames(dataIn)), function(x){
+      ind <- as.character(seqnames(dataIn)) == x
       r <- rle(states[ind])
     }))
     rleLengths <- unlist(rleResults[, "lengths"])
@@ -256,11 +256,11 @@ segmentData <- function(dataGR, validInd, states, convergedParams){
       segDF <- sampleDF[start:end, colNames]
       prevInd <- end
       numR <- nrow(segDF)
-      segs[j, "chr"] <- as.character(segDF[1, "space"])
+      segs[j, "chr"] <- as.character(segDF[1, "seqnames"])
       segs[j, "start"] <- segDF[1, "start"]
       segs[j, "state"] <- rleValues[j]
       segs[j, "copy.number"] <- jointStates[rleValues[j], i]
-      if (segDF[1, "space"] == segDF[numR, "space"]){
+      if (segDF[1, "seqnames"] == segDF[numR, "seqnames"]){
         segs[j, "end"] <- segDF[numR, "end"]
         segs[j, "median"] <- round(median(segDF$copy, na.rm = TRUE), digits = 6)
         if (includeHOMD){

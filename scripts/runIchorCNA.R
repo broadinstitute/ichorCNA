@@ -24,6 +24,7 @@ option_list <- list(
   make_option(c("--exons.bed"), type = "character", default=NULL, help = "Path to bed file containing exon regions. Default: [%default]"),
   make_option(c("--id"), type = "character", default="test", help = "Patient ID. Default: [%default]"),
   make_option(c("--centromere"), type="character", default=NULL, help = "File containing Centromere locations; if not provided then will use hg19 version from ichorCNA package. Default: [%default]"),
+  make_option(c("--minMapScore"), type = "numeric", default=0.9, help="Include bins with a minimum mappability score of this value. Default: [%default]."),
   make_option(c("--rmCentromereFlankLength"), type="numeric", default=1e5, help="Length of region flanking centromere to remove. Default: [%default]"),
   make_option(c("--normal"), type="character", default="0.5", help = "Initial normal contamination; can be more than one value if additional normal initializations are desired. Default: [%default]"),
   make_option(c("--scStates"), type="character", default="NULL", help = "Subclonal states to consider. Default: [%default]"),
@@ -60,6 +61,7 @@ print(opt)
 options(scipen=0, stringsAsFactors=F)
 
 library(HMMcopy)
+library(GenomicRanges)
 library(GenomeInfoDb)
 options(stringsAsFactors=FALSE)
 options(bitmapType='cairo')
@@ -72,6 +74,7 @@ mapWig <- opt$mapWig
 normal_panel <- opt$normalPanel
 exons.bed <- opt$exons.bed  # "0" if none specified
 centromere <- opt$centromere
+minMapScore <- opt$minMapScore
 flankLength <- opt$rmCentromereFlankLength
 normal <- eval(parse(text = opt$normal))
 scStates <- eval(parse(text = opt$scStates))
@@ -92,6 +95,7 @@ txnStrength <- opt$txnStrength
 normalizeMaleX <- as.logical(opt$normalizeMaleX)
 includeHOMD <- as.logical(opt$includeHOMD)
 fracReadsInChrYForMale <- opt$fracReadsInChrYForMale
+chrXMedianForMale <- -0.1
 outDir <- opt$outDir
 libdir <- opt$libdir
 plotFileType <- opt$plotFileType
@@ -123,7 +127,7 @@ if (substr(tumour_file,nchar(tumour_file)-2,nchar(tumour_file)) == "wig") {
 }
 
 ## FILTER BY EXONS IF PROVIDED ##
-## add gc and map to RangedData object ##
+## add gc and map to GRanges object ##
 if (is.null(exons.bed) || exons.bed == "None" || exons.bed == "NULL"){
   targetedSequences <- NULL
 }else{
@@ -151,7 +155,7 @@ for (i in 1:numSamples) {
   dir.create(paste0(outDir, "/", id, "/"), recursive = TRUE)
   ### LOAD TUMOUR AND NORMAL FILES ###
   message("Loading tumour file:", wigFiles[i,1])
-  tumour_reads <- wigToRangedData(wigFiles[i,2])
+  tumour_reads <- wigToGRanges(wigFiles[i,2])
   
   ## LOAD GC/MAP WIG FILES ###
   # find the bin size and load corresponding wig files #
@@ -160,30 +164,30 @@ for (i in 1:numSamples) {
   if (is.null(gcWig) || gcWig == "None" || gcWig == "NULL"){
       stop("GC wig file is required")
   }
-  gc <- wigToRangedData(gcWig)
+  gc <- wigToGRanges(gcWig)
   if (is.null(mapWig) || mapWig == "None" || mapWig == "NULL"){
       message("No mappability wig file input, excluding from correction")
       map <- NULL
   } else {
-      map <- wigToRangedData(mapWig)
+      map <- wigToGRanges(mapWig)
   }
   message("Correcting Tumour")
   
   counts <- loadReadCountsFromWig(tumour_reads, chrs = chrs, gc = gc, map = map, 
                                        centromere = centromere, flankLength = flankLength, 
-                                       targetedSequences = targetedSequences, 
-                                       genomeStyle = genomeStyle,
-                                       chrNormalize = chrNormalize, mapScoreThres = 0.9)
+                                       targetedSequences = targetedSequences, chrXMedianForMale = chrXMedianForMale,
+                                       genomeStyle = genomeStyle, fracReadsInChrYForMale = fracReadsInChrYForMale,
+                                       chrNormalize = chrNormalize, mapScoreThres = minMapScore)
   tumour_copy[[id]] <- counts$counts #as(counts$counts, "GRanges")
   gender <- counts$gender
  	## load in normal file if provided 
  	if (!is.null(normal_file)){
 		message("Loading normal file:", normal_file)
-		normal_reads <- wigToRangedData(normal_file)
+		normal_reads <- wigToGRanges(normal_file)
 		message("Correcting Normal")
 		counts <- loadReadCountsFromWig(normal_reads, chrs=chrs, gc=gc, map=map, 
 				centromere=centromere, flankLength = flankLength, targetedSequences=targetedSequences,
-				genomeStyle = genomeStyle, chrNormalize = chrNormalize, mapScoreThres = 0.9)
+				genomeStyle = genomeStyle, chrNormalize = chrNormalize, mapScoreThres = minMapScore)
 		normal_copy <- counts$counts #as(counts$counts, "GRanges")
 		gender.normal <- counts$gender
 	}else{
@@ -203,7 +207,7 @@ for (i in 1:numSamples) {
 	message("Gender ", gender$gender)
 
   ## NORMALIZE GENOME-WIDE BY MATCHED NORMAL OR NORMAL PANEL (MEDIAN) ##
-  tumour_copy[[id]] <- normalizeByPanelOrMatchedNormal(tumour_copy[[id]], chrs = c(1:22, "X", "Y"), 
+  tumour_copy[[id]] <- normalizeByPanelOrMatchedNormal(tumour_copy[[id]], chrs = chrs, 
       normal_panel = normal_panel, normal_copy = normal_copy, 
       gender = gender$gender, normalizeMaleX = normalizeMaleX)
 	
@@ -211,7 +215,7 @@ for (i in 1:numSamples) {
 	### PUTTING TOGETHER THE COLUMNS IN THE OUTPUT ###
 	outMat <- as.data.frame(tumour_copy[[id]])
 	#outMat <- outMat[,c(1,2,3,12)]
-	outMat <- outMat[,c("space","start","end","copy")]
+	outMat <- outMat[,c("seqnames","start","end","copy")]
 	colnames(outMat) <- c("chr","start","end","log2_TNratio_corrected")
 	outFile <- paste0(outDir,"/",id,".correctedDepth.txt")
 	message(paste("Outputting to:", outFile))
@@ -219,8 +223,9 @@ for (i in 1:numSamples) {
 
 } ## end of for each sample
 
+tumour_copy <- as(tumour_copy, "GRangesList")
 
-chrInd <- space(tumour_copy[[1]]) %in% chrTrain
+chrInd <- as.character(seqnames(tumour_copy[[1]])) %in% chrTrain
 ## get positions that are valid
 valid <- tumour_copy[[1]]$valid
 if (length(tumour_copy) >= 2) {
@@ -246,7 +251,7 @@ for (n in normal){
     if (n == 0.95 & p != 2) {
         next
     }
-    logR <- as.data.frame(lapply(tumour_copy, "[[", "copy")) # NEED TO EXCLUDE CHR X #
+    logR <- as.data.frame(lapply(tumour_copy, function(x) { x$copy })) # NEED TO EXCLUDE CHR X #
     param <- getDefaultParameters(logR[valid & chrInd, , drop=F], maxCN = maxCN, includeHOMD = includeHOMD, 
                 ct.sc=scStates, ploidy = floor(p), e=txnE, e.same = 50, strength=txnStrength)
     param$phi_0 <- rep(p, numSamples)
@@ -305,7 +310,7 @@ for (n in normal){
 			maxBinLength = -Inf
 			if (sum(segAltInd) > 0){
 				maxInd <- which.max(segsS$end[segAltInd] - segsS$start[segAltInd] + 1)
-				maxSegRD <- RangedData(space=segsS$chr[segAltInd[maxInd]], 
+				maxSegRD <- GRanges(seqnames=segsS$chr[segAltInd[maxInd]], 
 									ranges=IRanges(start=segsS$start[segAltInd[maxInd]], end=segsS$end[segAltInd[maxInd]]))
 				hits <- findOverlaps(query=maxSegRD, subject=tumour_copy[[s]][valid, ])
 				maxBinLength <- length(subjectHits(hits))
@@ -317,7 +322,7 @@ for (n in normal){
 			altFrac <- sum(!altInd, na.rm=TRUE) / length(altInd)
 			if ((maxBinLength <= minSegmentBins) & (altFrac <= altFracThreshold)){
 				hmmResults.cor$results$n[s, iter] <- 1.0
-    	}
+    		}
       ## plot solution ##
       outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide_", "n", n, "-p", p)
       mainName[counter] <- paste0(id, ", n: ", n, ", p: ", p, ", log likelihood: ", signif(hmmResults.cor$results$loglik[hmmResults.cor$results$iter], digits = 4))

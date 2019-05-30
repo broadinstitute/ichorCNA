@@ -272,7 +272,7 @@ plotCNlogRByChr <- function(dataIn, segs, param = NULL, colName = "copy", plotSe
 plotCorrectionGenomeWide <- function(correctOutput, ...) {
   
   midpt <- (start(correctOutput) + end(correctOutput))/2
-  coord <- getGenomeWidePositions(space(correctOutput),midpt)
+  coord <- getGenomeWidePositions(seqnames(correctOutput),midpt)
   
   
   par(mfrow = c(3, 1))
@@ -293,17 +293,17 @@ plotCorrectionGenomeWide <- function(correctOutput, ...) {
   r <- c(min(y, na.rm = TRUE), max(y, na.rm = TRUE))
   plot(pos[set], y, ylab = "Estimated Copy", xaxt="n",
        main = paste("Uncorrected Readcount, MAD = ", m), ylim = r, ...)
-  plotChrLines(as.vector(unique(space(correctOutput))),coord$chrBkpt,yrange=r+c(-0.5,0.5))
+  plotChrLines(as.vector(unique(seqnames(correctOutput))),coord$chrBkpt,yrange=r+c(-0.5,0.5))
   m <- signif(mad(correctOutput$cor.gc[set], na.rm = TRUE), digits = 3)
   plot(pos[set], correctOutput$cor.gc[set], xaxt="n",
        ylab = "Estimated Copy",
        main = paste("CG-corrected Readcount, MAD = ", m), ylim = r, ...)
-  plotChrLines(as.vector(unique(space(correctOutput))),coord$chrBkpt,yrange=r+c(-0.5,0.5))
+  plotChrLines(as.vector(unique(seqnames(correctOutput))),coord$chrBkpt,yrange=r+c(-0.5,0.5))
   m <- signif(mad(correctOutput$cor.map[set], na.rm = TRUE), digits = 3)
   plot(pos[set], correctOutput$cor.map[set], xaxt="n", ylab = "Estimated Copy",
        main = paste("Mappability and GC-corrected Readcount, MAD = ", m),
        ylim = r, ...)
-  plotChrLines(as.vector(unique(space(correctOutput))),coord$chrBkpt,yrange=r+c(-0.5,0.5))
+  plotChrLines(as.vector(unique(seqnames(correctOutput))),coord$chrBkpt,yrange=r+c(-0.5,0.5))
 }
 
 ##################################################
