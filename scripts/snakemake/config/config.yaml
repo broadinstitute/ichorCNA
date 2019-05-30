@@ -17,6 +17,7 @@ ichorCNA_mapWig:  ../../inst/extdata/map_hg19_1000kb.wig
 ichorCNA_exons:  NULL
 ichorCNA_centromere:  ../../inst/extdata/GRCh37.p13_centromere_UCSC-gapTable.txt
 ichorCNA_chrs:  c(1:22, \"X\")
+ichorCNA_fracReadsInChrYForMale: 0.002
 ichorCNA_genomeStyle:  NCBI
 
 # chrs used for training ichorCNA parameters, e.g. tumor fraction. 
