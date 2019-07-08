@@ -31,6 +31,21 @@ filterEmptyChr <- function(gr){
 	return(keepSeqlevels(gr, value = names(which(!ind))))
 }
 
+####################################
+##### FUNCTION GET SEQINFO ######
+####################################
+getSeqInfo <- function(genomeBuild = "hg19", genomeStyle = "NCBI"){
+	bsg <- paste0("BSgenome.Hsapiens.UCSC.", genomeBuild)
+	if (!require(bsg, character.only=TRUE, quietly=TRUE, warn.conflicts=FALSE)) {
+		seqinfo <- Seqinfo(genome=genomeBuild)
+	} else {
+		seqinfo <- seqinfo(get(bsg))
+	}
+	seqlevelsStyle(seqinfo) <- genomeStyle
+	seqinfo <- keepSeqlevels(seqinfo, value = chrs)
+	#seqinfo <- cbind(seqnames = seqnames(seqinfo), as.data.frame(seqinfo))
+	return(seqinfo)	
+}
 
 ##################################################
 ##### FUNCTION TO FILTER CENTROMERE REGIONS ######
@@ -46,7 +61,10 @@ excludeCentromere <- function(x, centromere, flankLength = 0, genomeStyle = "NCB
 	hits <- findOverlaps(query = x, subject = centromere)
 	ind <- queryHits(hits)
 	message("Removed ", length(ind), " bins near centromeres.")
-	return(x[-ind, ])
+	if (length(ind) > 0){
+		x <- x[-ind, ]
+	}
+	return(x)
 }
 
 ##################################################
@@ -120,7 +138,7 @@ loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, m
 	}
 	# keep targeted sequences
 	if (!is.null(targetedSequences)){
-		seqlevlesStyle(targetedSequences) <- genomeStyle
+		seqlevelsStyle(targetedSequences) <- genomeStyle
 		countsExons <- filterByTargetedSequences(counts, targetedSequences)
 		counts <- counts[countsExons$ix,]
 	}
