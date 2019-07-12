@@ -13,8 +13,8 @@ ichorCNA is a tool for estimating the fraction of tumor in ultra-low-pass whole 
 \tabular{ll}{
 Package: \tab ichorCNA\cr
 Type: \tab Package\cr
-Version: \tab 0.3.0\cr
-Date: \tab 2019-06-27\cr
+Version: \tab 0.3.1\cr
+Date: \tab 2019-07-12\cr
 License: \tab GPL-3\cr
 }
 }

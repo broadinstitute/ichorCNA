@@ -138,23 +138,25 @@ loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, m
 	}
 	# keep targeted sequences
 	if (!is.null(targetedSequences)){
-		seqlevelsStyle(targetedSequences) <- genomeStyle
-		countsExons <- filterByTargetedSequences(counts, targetedSequences)
+		colnames(targetedSequences)[1:3] <- c("chr", "start", "end")
+		targetedSequences.GR <- as(targetedSequences, "GRanges")
+		seqlevelsStyle(targetedSequences.GR) <- genomeStyle
+		countsExons <- filterByTargetedSequences(counts, targetedSequences.GR)
 		counts <- counts[countsExons$ix,]
 	}
 	gender <- NULL
 	if (applyCorrection){
-	## correct read counts ##
-    counts <- correctReadCounts(counts, chrNormalize = chrNormalize)
-    if (!is.null(map)) {
-      ## filter bins by mappability
-      counts <- filterByMappabilityScore(counts, map=map, mapScoreThres = mapScoreThres)
-    }
-    ## get gender ##
-    gender <- getGender(counts.raw, counts, gc, map, fracReadsInChrYForMale = fracReadsInChrYForMale, 
-    					chrXMedianForMale = chrXMedianForMale, useChrY = useChrY,
-                        centromere=centromere, flankLength=flankLength, targetedSequences = targetedSequences,
-                        genomeStyle = genomeStyle)
+		## correct read counts ##
+		counts <- correctReadCounts(counts, chrNormalize = chrNormalize)
+		if (!is.null(map)) {
+		  ## filter bins by mappability
+		  counts <- filterByMappabilityScore(counts, map=map, mapScoreThres = mapScoreThres)
+		}
+		## get gender ##
+		gender <- getGender(counts.raw, counts, gc, map, fracReadsInChrYForMale = fracReadsInChrYForMale, 
+							chrXMedianForMale = chrXMedianForMale, useChrY = useChrY,
+							centromere=centromere, flankLength=flankLength, targetedSequences = targetedSequences,
+							genomeStyle = genomeStyle)
     }
   return(list(counts = counts, gender = gender))
 }
@@ -171,11 +173,8 @@ filterByTargetedSequences <- function(counts, targetedSequences){
     ### targetedSequence = GRanges object
     ### containing list of targeted regions to consider;
     ### 3 columns: chr, start, end
-	message("Analyzing targeted regions...")
-	targetIR <- GRanges(ranges = IRanges(start = targetedSequences[, 2], 
-				end = targetedSequences[, 3]), seqnames = targetedSequences[, 1])
-				
-	hits <- findOverlaps(query = counts, subject = targetIR)
+					
+	hits <- findOverlaps(query = counts, subject = targetedSequences)
 	keepInd <- unique(queryHits(hits))    
 
 	return(list(counts=counts, ix=keepInd))
@@ -247,9 +246,6 @@ normalizeByPanelOrMatchedNormal <- function(tumour_copy, chrs = c(1:22, "X", "Y"
 	if (!is.null(normal_panel)){
 		## load in IRanges object, then convert to GRanges
 		panel <- readRDS(normal_panel)
-		panel <- as.data.frame(panel)
-		colnames(panel)[1] <- "seqnames"
-		panel <- as(panel, "GRanges")
 		seqlevelsStyle(panel) <- genomeStyle
 		panel <- keepChr(panel, chr = chrs)
         # intersect bins in sample and panel
@@ -316,6 +312,80 @@ correctReadCounts <- function(x, chrNormalize = c(1:22), mappability = 0.9, samp
   return(x)
 }
 
+## Recompute integer CN for high-level amplifications ##
+## compute logR-corrected copy number ##
+correctIntegerCN <- function(cn, logRColName = "logR", callColName = "event", 
+		purity, ploidy, cellPrev, maxCNtoCorrect.autosomes = NULL, 
+		maxCNtoCorrect.X = NULL, correctHOMD = TRUE, minPurityToCorrect = 0.2, gender = "male", chrs = c(1:22, "X")){
+	names <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP", rep("HLAMP", 1000))
+
+	## set up chromosome style
+	autosomeStr <- grep("X|Y", chrs, value=TRUE, invert=TRUE)
+	chrXStr <- grep("X", chrs, value=TRUE)
+	
+	if (is.null(maxCNtoCorrect.autosomes)){
+		maxCNtoCorrect.autosomes <- max(segs[segs$chr %in% autosomeStr, "copy.number"], na.rm = TRUE)
+	}
+	if (is.null(maxCNtoCorrect.X) & gender == "female" & length(chrXStr) > 0){
+		maxCNtoCorrect.X <- max(segs[segs$chr == chrXStr, "copy.number"], na.rm=TRUE)
+	}
+	## correct log ratio and compute corrected CN
+	cellPrev.cn <- rep(1, nrow(cn))
+	cellPrev.cn[as.logical(cn$subclone.status)] <- cellPrev
+	cn$logR_Copy_Number <- logRbasedCN(cn[[logRColName]], purity, ploidy, cellPrev.cn, cn=2)
+	if (gender == "male" & length(chrXStr) > 0){ ## analyze chrX separately
+		ind.cnChrX <- which(cn$chr == chrXStr)
+		cn$logR_Copy_Number[ind.cnChrX] <- logRbasedCN(cn[[logRColName]][ind.cnChrX], purity, ploidy, cellPrev.cn[ind.cnChrX], cn=1)
+	}
+
+	## assign copy number to use - Corrected_Copy_Number
+	# same ichorCNA calls for autosomes - no change in copy number
+	cn$Corrected_Copy_Number <- as.integer(cn$copy.number)
+	cn$Corrected_Call <- cn[[callColName]]
+
+	if (purity >= minPurityToCorrect){
+		# ichorCNA calls adjusted for >= copies - HLAMP
+		ind.cn <- which(cn$chr %in% chrs & cn$copy.number >= maxCNtoCorrect.autosomes)
+		cn$Corrected_Copy_Number[ind.cn] <- as.integer(round(cn$logR_Copy_Number[ind.cn]))
+
+	# ichorCNA calls adjust for HOMD
+	if (correctHOMD){
+		ind.cn <- which(cn$chr %in% chrs & cn$copy.number == 0)
+		cn$Corrected_Copy_Number[ind.cn] <- as.integer(round(cn$logR_Copy_Number[ind.cn]))
+	}
+		# Adjust chrX copy number if purity is sufficiently high
+		# males - all data points in chrX is corrected
+		# females - only maxCN data points
+		if (gender == "male" & length(chrXStr) > 0){
+			ind.cn <- which(cn$chr == chrXStr)
+			cn$Corrected_Copy_Number[ind.cn] <- as.integer(round(cn$logR_Copy_Number[ind.cn]))
+			cn$Corrected_Call[ind.cn] <- names[cn$Corrected_Copy_Number[ind.cn] + 2]
+		}else if (gender == "female"){
+			ind.cn <- which(cn$chr == chrXStr & cn$copy.number >= maxCNtoCorrect.X)
+			cn$Corrected_Copy_Number[ind.cn] <- as.integer(round(cn$logR_Copy_Number[ind.cn]))
+			cn$Corrected_Call[ind.cn] <- names[cn$Corrected_Copy_Number[ind.cn] + 1]
+		}
+	}
+	
+	return(cn)
+}
+
+
+## compute copy number using corrected log ratio ##
+logRbasedCN <- function(x, purity, ploidyT, cellPrev=NA, cn = 2){
+	if (length(cellPrev) == 1 && is.na(cellPrev)){
+		cellPrev <- 1
+	}else{ #if cellPrev is a vector
+		cellPrev[is.na(cellPrev)] <- 1
+	}
+	ct <- (2^x 
+		* (cn * (1 - purity) + purity * ploidyT * (cn / 2)) 
+		- (cn * (1 - purity)) 
+		- (cn * purity * (1 - cellPrev))) 
+	ct <- ct / (purity * cellPrev)
+	ct <- sapply(ct, max, 1/2^6)
+	return(ct)
+}
 
 
 computeBIC <- function(params){

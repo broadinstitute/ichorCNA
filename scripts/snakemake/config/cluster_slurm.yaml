@@ -13,9 +13,3 @@ read_counter:
 ichorCNA:
     time:   "100:0:0"
     mem:    10G
-
-runTitanCNA:
-    time:   "100:0:0"
-    mem:    16G
-    ncpus:  1
-    
