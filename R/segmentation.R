@@ -12,8 +12,8 @@
 
 HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL, 
     chrTrain = c(1:22), maxiter = 50, estimateNormal = TRUE, estimatePloidy = TRUE, 
-    estimatePrecision = TRUE, estimateSubclone = TRUE, estimateTransition = TRUE,
-    estimateInitDist = TRUE, logTransform = FALSE, verbose = TRUE) {
+    estimatePrecision = TRUE, estimateVar = TRUE, estimateSubclone = TRUE, estimateTransition = TRUE,
+    estimateInitDist = TRUE, likModel = 't', logTransform = FALSE, verbose = TRUE) {
   chr <- space(x[[1]])
 	# setup columns for multiple samples #
 	dataMat <- as.matrix(as.data.frame(lapply(x, "[[", dataType)))
@@ -46,8 +46,10 @@ HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL,
 	####### RUN EM ##########
   convergedParams <- runEM(dataMat, chr, chrInd, param, maxiter, 
       verbose, estimateNormal = estimateNormal, estimatePloidy = estimatePloidy, 
-      estimateSubclone = estimateSubclone, estimatePrecision = estimatePrecision, 
-      estimateTransition = estimateTransition, estimateInitDist = estimateInitDist)
+      estimateVar = estimateVar, estimateSubclone = estimateSubclone, 
+      estimatePrecision = estimatePrecision, estimateTransition = estimateTransition, 
+      estimateInitDist = estimateInitDist, likModel = likModel)
+	
   # Calculate likelihood using converged params
  # S <- param$numberSamples
  # K <- length(param$ct)
@@ -123,7 +125,9 @@ getTransitionMatrix <- function(K, e, strength){
   return(list(A=A, dirPrior=dirPrior))
 }
 
-getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9999999, e.sameState = 10, strength = 10000000, includeHOMD = FALSE){
+getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, 
+                                 e = 0.9999999, e.sameState = 10, strength = 10000000, 
+                                 includeHOMD = FALSE, likModel = "t"){
   if (includeHOMD){
     ct <- 0:maxCN
   }else{
@@ -135,32 +139,43 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9
 		ct.sc.status = c(rep(FALSE, length(ct)), rep(TRUE, length(ct.sc))),
 		phi_0 = 2, alphaPhi = 4, betaPhi = 1.5,
 		n_0 = 0.5, alphaN = 2, betaN = 2,
-		sp_0 = 0.5, alphaSp = 2, betaSp = 2,
+		sp_0 = 0.01, alphaSp = 2, betaSp = 2,
 		lambda = as.matrix(rep(100, length(ct)+length(ct.sc)), ncol=1),
 		nu = 2.1,
 		kappa = rep(75, length(ct)), 
-		alphaLambda = 5
+		alphaLambda = 5,
+		betaVar = 1,
+		likModel = likModel
 	)
 	K <- length(param$ct)
+	S <- ncol(x)
+	KS <- K ^ S
   ## initialize hyperparameters for precision using observed data ##
 	if (!is.null(dim(x))){ # multiple samples (columns)
-    param$numberSamples <- ncol(x)
+    param$numberSamples <- S
     #betaLambdaVal <- ((apply(x, 2, function(x){ sd(diff(x), na.rm=TRUE) }) / sqrt(length(param$ct))) ^ 2)
-    betaLambdaVal <- ((apply(x, 2, sd, na.rm = TRUE) / sqrt(length(param$ct))) ^ 2)   
+    betaLambdaVal <- ((apply(x, 2, sd, na.rm = TRUE) / sqrt(K)) ^ 2)   
 	}else{ # only 1 sample
 	  param$numberSamples <- 1
-	  betaLambdaVal <- ((sd(x, na.rm = TRUE) / sqrt(length(param$ct))) ^ 2)
+	  betaLambdaVal <- ((sd(x, na.rm = TRUE) / sqrt(K)) ^ 2)
 	}
-	param$betaLambda <- matrix(betaLambdaVal, ncol = param$numberSamples, nrow = length(param$ct), byrow = TRUE)
+	#param$betaLambda <- betaLambdaVal #t(replicate(K, betaLambdaVal))
+	param$betaLambda <- matrix(betaLambdaVal, ncol = param$numberSamples, nrow = K, byrow = TRUE)
   param$alphaLambda <- rep(param$alphaLambda, K)
-  
-	# increase prior precision for -1, 0, 1 copies at ploidy
-	#param$lambda[param$ct %in% c(1,2,3)] <- 1000 # HETD, NEUT, GAIN
-	#param$lambda[param$ct == 4] <- 100 
-	#param$lambda[which.max(param$ct)] <- 50 #highest CN
-	#param$lambda[param$ct == 0] <- 1 #HOMD
-	S <- param$numberSamples
-	logR.var <- 1 / ((apply(x, 2, sd, na.rm = TRUE) / sqrt(length(param$ct))) ^ 2)
+  #if (likModel == "Gaussian"){
+    param$psi <- diag(param$numberSamples) # parameter for inverse-wishart prior
+    param$nu
+    covar <- getCovarianceMatrix(x)
+    param$cor <- covar$cor
+    param$covar <- covar$covar
+    #param$var <- t(replicate(K, diag(covar$covar)))
+    param$var <- matrix(apply(copy, 2, var, na.rm=T), ncol = S, nrow = K, byrow = TRUE)
+    param$betaVar <- rep(param$betaVar, S)
+    alphaVar <- param$betaVar / (apply(x, 2, var, na.rm = TRUE) / sqrt(K))
+    param$alphaVar <- matrix(alphaVar, ncol = S, nrow = KS, byrow = TRUE)
+  #}
+
+	logR.var <- 1 / ((apply(x, 2, sd, na.rm = TRUE) / sqrt(K)) ^ 2)
 	if (!is.null(dim(x))){ # multiple samples (columns)
 		param$lambda <- matrix(logR.var, nrow=K, ncol=S, byrow=T, dimnames=list(c(),colnames(x)))
 	}else{ # only 1 sample    
@@ -173,8 +188,12 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9
     param$lambda[param$ct.sc.status] <- logR.var / 10
   }
   # define joint copy number states #
+	param$jointStates <- expand.grid(rep(list(1:length(param$ct)), S))
   param$jointCNstates <- expand.grid(rep(list(param$ct), S))
   param$jointSCstatus <- expand.grid(rep(list(param$ct.sc.status), S))
+  KS <- nrow(param$jointCNstates)
+  #param$covar <- replicate(KS, covar$covar)
+	
   colnames(param$jointCNstates) <- paste0("Sample.", 1:param$numberSamples)
   colnames(param$jointSCstatus) <- paste0("Sample.", 1:param$numberSamples)
   

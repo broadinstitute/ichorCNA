@@ -35,6 +35,7 @@ option_list <- list(
   make_option(c("--estimateNormal"), type="logical", default=TRUE, help = "Estimate normal. Default: [%default]"),
   make_option(c("--estimateScPrevalence"), type="logical", default=TRUE, help = "Estimate subclonal prevalence. Default: [%default]"),
   make_option(c("--estimatePloidy"), type="logical", default=TRUE, help = "Estimate tumour ploidy. Default: [%default]"),
+  make_option(c("--likModel"), type="character", default="t", help="Likelihood model to use. \"t\" or \"gaussian\". Use \"gaussian\" for faster runtimes. Default: [%default]"),
   make_option(c("--maxFracCNASubclone"), type="numeric", default=0.7, help="Exclude solutions with fraction of subclonal events greater than this value. Default: [%default]"),
   make_option(c("--maxFracGenomeSubclone"), type="numeric", default=0.5, help="Exclude solutions with subclonal genome fraction greater than this value. Default: [%default]"),
   make_option(c("--minSegmentBins"), type="numeric", default=50, help="Minimum number of bins for largest segment threshold required to estimate tumor fraction; if below this threshold, then will be assigned zero tumor fraction."),
@@ -79,6 +80,7 @@ lambdaScaleHyperParam <- opt$lambdaScaleHyperParam
 estimateNormal <- opt$estimateNormal
 estimatePloidy <- opt$estimatePloidy
 estimateScPrevalence <- opt$estimateScPrevalence
+likModel <- opt$likModel
 maxFracCNASubclone <- opt$maxFracCNASubclone
 maxFracGenomeSubclone <- opt$maxFracGenomeSubclone
 minSegmentBins <- opt$minSegmentBins
@@ -221,10 +223,10 @@ for (i in 1:numSamples) {
 
 chrInd <- space(tumour_copy[[1]]) %in% chrTrain
 ## get positions that are valid
-valid <- tumour_copy[[1]]$valid
+valid <- tumour_copy[[1]]$valid & !is.na(tumour_copy[[i]]$copy)
 if (length(tumour_copy) >= 2) {
   for (i in 2:length(tumour_copy)){ 
-    valid <- valid & tumour_copy[[i]]$valid 
+    valid <- valid & tumour_copy[[i]]$valid & !is.na(tumour_copy[[i]]$copy)
   } 
 }
 save.image(outImage)
@@ -247,10 +249,9 @@ for (n in normal){
     }
     logR <- as.data.frame(lapply(tumour_copy, "[[", "copy")) # NEED TO EXCLUDE CHR X #
     param <- getDefaultParameters(logR[valid & chrInd, , drop=F], maxCN = maxCN, includeHOMD = includeHOMD, 
-                ct.sc=scStates, ploidy = floor(p), e=txnE, e.same = 50, strength=txnStrength)
+                ct.sc=scStates, ploidy = floor(p), e=txnE, e.same = 50, strength=txnStrength, likModel = likModel)
     param$phi_0 <- rep(p, numSamples)
     param$n_0 <- rep(n, numSamples)
-    
     ############################################
     ######## CUSTOM PARAMETER SETTINGS #########
     ############################################
@@ -290,7 +291,7 @@ for (n in normal){
     hmmResults.cor <- HMMsegment(tumour_copy, valid, dataType = "copy", 
                                  param = param, chrTrain = chrTrain, maxiter = 50,
                                  estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
-                                 estimateSubclone = estimateScPrevalence, verbose = TRUE)
+                                 estimateSubclone = estimateScPrevalence, likModel = likModel, verbose = TRUE)
     
     for (s in 1:numSamples){
 			iter <- hmmResults.cor$results$iter

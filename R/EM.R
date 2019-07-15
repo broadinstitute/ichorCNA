@@ -10,13 +10,14 @@
 # description: Hidden Markov model (HMM) to analyze Ultra-low pass whole genome sequencing (ULP-WGS) data.
 # This script is the main script to run the HMM.
 
-runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE, 
-									estimateNormal = TRUE, estimatePloidy = TRUE, estimatePrecision = TRUE,
+runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE, 
+									estimateNormal = TRUE, estimatePloidy = TRUE, 
+									estimateVar = TRUE, estimatePrecision = TRUE,
                   estimateTransition = TRUE, estimateInitDist = TRUE, estimateSubclone = TRUE,
-                  likChangeConvergence = 1e-3) {
+									likModel = "t", likChangeConvergence = 1e-3) {
   
-  if (nrow(copy) != length(chr) || nrow(copy) != length(chrTrain)) {
-    stop("runEM: Length of inputs do not match for one of: copy, chr, chrTrain")
+  if (nrow(copy) != length(chr) || nrow(copy) != length(chrInd)) {
+    stop("runEM: Length of inputs do not match for one of: copy, chr, chrInd")
   }
   
   if (is.null(param$ct) || is.null(param$lambda) || is.null(param$nu) ||
@@ -31,16 +32,19 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
   KS <- K ^ S
   N <- nrow(copy)
   rho <- matrix(0, KS, N)
-  py <- matrix(0, KS, N)            # Local evidence
-  mus <- array(0, dim = c(KS, S, maxiter))     # State means
   lambdas <- array(0, dim = c(K, S, maxiter))  # State Variances
+  #covars <- rep(list(NULL), maxiter) #State covariance matrices
+  vars <- array(0, dim = c(K, S, maxiter))
   phi <- matrix(NA, length(param$phi_0), maxiter)					 # Tumour ploidy
   n <- matrix(NA, S, maxiter)						 # Normal contamination
   sp <- matrix(NA, S, maxiter)     # cellular prevalence (tumor does not contain event)
   piG <- matrix(0, KS, maxiter)     # Initial state distribution
+  A <- param$A
   converged <- FALSE               # Flag for convergence
   Zcounts <- matrix(0, KS, KS)
   loglik <- rep(0, maxiter)
+  mus <- array(0, dim = c(KS, S, maxiter))     # State means
+  py <- matrix(0, KS, N)            # Local evidence
   
   ptmTotal <- proc.time() # start total timer
   
@@ -62,18 +66,29 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
   phi[, i] <- param$phi_0
   lambdas[, , i] <- param$lambda #matrix(param$lambda, nrow = K, ncol = S, byrow = TRUE)
   lambdasKS <- as.matrix(expand.grid(as.data.frame(lambdas[, , i]))) #as.matrix(expand.grid(rep(list(param$lambda), S)))
+  #covars[[i]] <- param$covar
+  #if (likModel == "Gaussian"){
+    vars[, , i] <- param$var
+    varsKS <- as.matrix(expand.grid(as.data.frame(vars[, , i])))
+  #}
   mus[, , i] <- as.matrix(get2and3ComponentMixture(param$jointCNstates, param$jointSCstatus, n[, i], sp[, i], phi[, i]))
   
   # Likelihood #
-  for (ks in 1:KS) {
-    probs <- tdistPDF(copy, mus[ks, , i], lambdasKS[ks, ], param$nu)
-    py[ks, ] <- apply(probs, 1, prod) # multiply across samples for each data point to get joint likelihood.
+  if (likModel == "t"){
+    for (ks in 1:KS) {
+      probs <- tdistPDF(copy, mus[ks, , i], lambdasKS[ks, ], param$nu)
+      py[ks, ] <- apply(probs, 1, prod) # multiply across samples for each data point to get joint likelihood.
+    }
+  }else if (likModel == "Gaussian"){
+    message("Using ", likModel, " emission model.")
+    #py <- t(sapply(1:KS, function(ks) {
+    #  mvGaussDistPDF(copy, mus[ks, , i], diag(varsKS[ks, ])) # not true covariance matrix
+    #}))
+    py <- t(sapply(1:KS, function(ks) {
+      probs = normalpdf(copy, mus[ks, , i], varsKS[ks, ])
+      apply(probs, 1, prod)
+    }))
   }
-  
-  # initialize transition prior #
-  A <- normalize(param$A)
-  A_prior <- A
-  dirPrior <- param$dirPrior
   
   loglik[i] <- -Inf
   
@@ -86,9 +101,9 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
     if (verbose) { message("runEM iter", i-1 , ": Expectation") }
     Zcounts <- matrix(0, KS, KS)
     for (j in 1:length(chrsI)) {
-      I <- intersect(chrsI[[j]], which(chrTrain))
+      I <- intersect(chrsI[[j]], which(chrInd))
       if (length(I) > 0){
-        output <- .Call("forward_backward", piG[, i - 1], A, py[, I],PACKAGE = "HMMcopy")
+        output <- .Call("forward_backward", piG[, i - 1], param$A, py[, I],PACKAGE = "HMMcopy")
         rho[, I] <- output$rho
         loglik[i] <- loglik[i] + output$loglik
         Zcounts <- Zcounts + t(colSums(aperm(output$xi, c(3, 2, 1))))
@@ -100,46 +115,83 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
     #for (s in 1:S){
     #  rhoS[[s]] <- matrix(0, nrow = K, ncol = N)
     #  for (k in 1:K){
-    #    rhoS[[s]][k, ] <- colSums(rho[param$jointCNstates[, s] == k, chrTrain])
+    #    rhoS[[s]][k, ] <- colSums(rho[param$jointCNstates[, s] == k, chrInd])
     #  }
     #}
     
     ################ M-step ####################
     if (verbose) { message("runEM iter", i-1 , ": Maximization") }
-    output <- estimateParamsMap(copy[chrTrain, ], n[, i - 1], sp[, i - 1], phi[, i - 1], 
+    ptm.em <- proc.time()
+    if (likModel == "Gaussian"){
+      output <- estimateGaussianParamsMap(copy[chrInd, ], n[, i - 1], sp[, i - 1], phi[, i - 1], 
+                                          varsKS, piG[, i - 1], A, param,
+                                          rho[, chrInd], Zcounts, estimateNormal = estimateNormal, 
+                                          estimatePloidy = estimatePloidy,
+                                          estimateVar = estimateVar, 
+                                          estimateTransition = estimateTransition,
+                                          estimateInitDist = estimateInitDist, 
+                                          estimateSubclone = estimateSubclone)
+      #vars[, , i] <- output$var
+      varsKS <- output$var
+      if (verbose == TRUE) {
+        for (s in 1:S){
+          message("Sample", s, " n=", signif(output$n[s], digits = 4), ", sp=", signif(output$sp[s], digits = 4), 
+                  ", phi=", signif(output$phi[s], digits = 4))
+                  #", var=", paste0(signif(output$var[, s], digits=5), collapse = ","))
+        }     
+      }
+    }else{ # Student's-t model
+      ptm.em <- proc.time()
+      output <- estimateTParamsMap(copy[chrInd, ], n[, i - 1], sp[, i - 1], phi[, i - 1], 
                                 lambdas[, , i - 1], piG[, i - 1], A, param,
-                                rho[, chrTrain], Zcounts, 
+                                rho[, chrInd], Zcounts, 
                                 estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
                                 estimatePrecision = estimatePrecision, estimateTransition = estimateTransition,
                                 estimateInitDist = estimateInitDist, estimateSubclone = estimateSubclone)
-    if (verbose == TRUE) {
-      for (s in 1:S){
-        message("Sample", s, " n=", signif(output$n[s], digits = 4), ", sp=", signif(output$sp[s], digits = 4), 
-                ", phi=", signif(output$phi[s], digits = 4), 
-                ", lambda=", paste0(signif(output$lambda[, s], digits=5), collapse = ","),
-                ", F=", signif(output$F, digits=4))
-      }     
+      
+      lambdas[, , i] <- output$lambda
+      if (verbose == TRUE) {
+        
+        for (s in 1:S){
+          message("Sample", s, " n=", signif(output$n[s], digits = 4), ", sp=", signif(output$sp[s], digits = 4), 
+                  ", phi=", signif(output$phi[s], digits = 4), 
+                  ", lambda=", paste0(signif(output$lambda[, s], digits=5), collapse = ","),
+                  ", F=", signif(output$F, digits=4))
+        }     
+      }
     }
+    elapsedTime <- proc.time() - ptm.em
+    message("runEM iter", i-1 , ": ", format(elapsedTime[3] / 60, digits = 2), "min.")
     n[, i] <- output$n
     sp[, i] <- output$sp
     phi[, i] <- output$phi
-    lambdas[, , i] <- output$lambda
     piG[, i] <- output$piG
     A <- output$A
     estF <- output$F
     
     # Recalculate the likelihood
-    lambdasKS <- as.matrix(expand.grid(as.data.frame(lambdas[, , i])))
+    #varsKS <- as.matrix(expand.grid(as.data.frame(vars[, , i])))
     mus[, , i] <- as.matrix(get2and3ComponentMixture(param$jointCNstates, param$jointSCstatus, n[, i], sp[, i], phi[, i]))
-    for (ks in 1:KS) {
-      probs <- tdistPDF(copy, mus[ks, , i], lambdasKS[ks, ], param$nu)
-      py[ks, ] <- apply(probs, 1, prod) # multiply across samples for each data point to get joint likelihood.
+    if (likModel == "t"){
+      for (ks in 1:KS) {
+        probs <- tdistPDF(copy, mus[ks, , i], lambdasKS[ks, ], param$nu)
+        py[ks, ] <- apply(probs, 1, prod) # multiply across samples for each data point to get joint likelihood.
+      }
+    }else if (likModel == "Gaussian"){
+      #py <- t(sapply(1:KS, function(ks) {
+      #  mvGaussDistPDF(copy, mus[ks, , i], diag(varsKS[ks, ])) # not true covariance matrix
+      #}))
+      py <- t(sapply(1:KS, function(ks) {
+        probs = normalpdf(copy, mus[ks, , i], varsKS[ks, ])
+        apply(probs, 1, prod)
+      }))
     }
     
-    prior <- priorProbs(n[, i], sp[, i], phi[, i], lambdas[, , i], piG[, i], A, param, 
+    prior <- priorProbs(n[, i], sp[, i], phi[, i], lambdas[, , i], varsKS, piG[, i], A, param, 
                         estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
-                        estimatePrecision = estimatePrecision, estimateTransition = estimateTransition,
-                        estimateInitDist = estimateInitDist, estimateSubclone = estimateSubclone)
+                        estimateVar = estimateVar, estimatePrecision = estimatePrecision, 
+                        estimateTransition = estimateTransition, estimateInitDist = estimateInitDist, 
+                        estimateSubclone = estimateSubclone, likModel = likModel)
     
     
     # check converence 
@@ -150,10 +202,11 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
       message("runEM iter", i-1, " Time: ", format(elapsedTime[3] / 60, digits = 2), " min.")
     }
     if ((abs(loglik[i] - loglik[i - 1]) / abs(loglik[i])) < likChangeConvergence){#} && loglik[i] > loglik[i - 1]) {
+      message("runEM iter", i-1, " EM Converged")
       converged = 1
     }
     if (loglik[i] < loglik[i - 1]){
-      #message("LIKELIHOOD DECREASED!!!")
+      message("LIKELIHOOD DECREASED!!!")
       #message("Using previous iteration ", i-2)
       i <- i - 1
       converged = 1
@@ -182,6 +235,7 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
   sp <- sp[, 1:i, drop=FALSE]
   phi <- phi[, 1:i, drop=FALSE]
   mus <- mus[, , 1:i, drop=FALSE]
+  vars <- vars[, , 1:i, drop=FALSE]
   lambdas <- lambdas[, , 1:i, drop=FALSE]
   piG <- piG[, 1:i, drop=FALSE]
   loglik = loglik[1:i]
@@ -191,6 +245,7 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
   output$sp <- sp
   output$phi <- phi
   output$mus <- mus
+  output$vars <- varsKS
   output$lambdas <- lambdas
   output$pi <- piG
   output$A <- A
@@ -264,6 +319,13 @@ gammapdflog <- function(x, a, b) { #rate and scale parameterization
   return(y)
 }
 
+invgammapdflog <- function(x, a, b) {
+  c <- a * log(b) - lgamma(a)
+  l <- (-a - 1) * log(x) + (-b / x)
+  y <- c + l
+  return(y)
+}
+
 betapdflog <- function(x, a, b) {
   y = -lbeta(a, b) + (a - 1) * log(x) + (b - 1) * log(1 - x)
   return(y)
@@ -287,8 +349,55 @@ tdistPDF <- function(x, mu, lambda, nu) {
   return(p)
 }
 
+normalpdf <- function(x, mu, var){
+  c <- log(1/(sqrt(var) * sqrt(2 * pi)))  #normalizing constant
+  l <- -((x - mu)^2)/(2 * var)  #likelihood
+  y <- c + l  #together 
+  y[is.na(y)] <- 0
+  y <- exp(y)
+  return(y)
+}
 
-estimateParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_prev, A_prev, 
+mvGaussDistPDF <- function(x, mu, covar){
+  # Multivariate Gaussian density function, return in exp scale #
+  S <- ncol(x)
+  T <- nrow(x)
+  x <- t(as.matrix(x))
+  mu <- matrix(mu, nrow = S, ncol = T, byrow = TRUE)
+  c <- log(2 * pi) * (S/2) + log(det(covar)) * (1/2)
+  l <-  1/2 * colSums(solve(covar) %*% (x - mu) * (x-mu))
+  y <- -c - l
+  y[is.na(y)] <- 0
+  return(exp(y))
+}
+
+getCovarianceMatrix <- function(x){
+  # sample covariance 
+  covar <- cov(x, use = "pairwise.complete.obs")
+  # correlation
+  cor <- covar[1, 2] / sqrt(covar[1, 1] * covar[2, 2])
+  return(list(covar = covar, cor = cor))
+}
+
+# Multivariate gamma function 
+multiGammaFunlog <- function(p, a){
+  if (p == 1){
+    return(lgamma(a))
+  }else{
+    return(log(pi ^ ((p - 1) / 2) + multiGammaFunlog(p - 1, a) + multiGammaFunlog(1, a + (1 - p) / 2)))
+  }
+}
+
+# Inverse Wishart density function in log scale 
+invWishartpdflog <- function(covar, psi, nu){
+  p <- ncol(covar)
+  const <- log(det(psi)) * (nu / 2) - log(2) * (nu * p / 2) + multiGammaFunlog(p, nu / 2)
+  lik <- log(det(covar)) * -((nu + p + 1) / 2) - 0.5 * sum(diag(psi %*% solve(covar)))
+  y <- const + lik
+  return(y)
+}
+
+estimateTParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_prev, A_prev, 
                               params, rho, Zcounts, 
                               estimateNormal = TRUE, estimatePloidy = TRUE,
                               estimatePrecision = TRUE, estimateInitDist = TRUE, 
@@ -311,7 +420,7 @@ estimateParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_prev
   lambda_hat <- lambda_prev
   pi_hat <- pi_prev
   A_hat <- A_prev
-  
+  F_lik <- 0
   # Update transition matrix A
   if (estimateTransition){
     for (k in 1:KS) {
@@ -338,6 +447,7 @@ estimateParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_prev
                        control = list(trace = 0, fnscale = -1))
     )
     n_hat <- estNorm$par
+    F_lik <- estNorm$value
   }
   if (estimateSubclone){
     suppressWarnings(
@@ -352,6 +462,7 @@ estimateParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_prev
                            control = list(trace = 0, fnscale = -1))
     )
     sp_hat <- estSubclone$par
+    F_lik <- estSubclone$value
   }
   if (estimatePloidy){
     suppressWarnings(
@@ -366,6 +477,7 @@ estimateParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_prev
                       control = list(trace = 0, fnscale = -1))
     )
     phi_hat <- estPhi$par
+    F_lik <- estPhi$value
   }
   if (estimatePrecision){
     suppressWarnings(
@@ -379,47 +491,232 @@ estimateParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_prev
                          control = list(trace = 0, fnscale = -1))
     )
     lambda_hat <- matrix(estLambda$par, ncol = S, byrow = FALSE)
+    F_lik <- estLambda$value
   }
-  
-  #}
-  #}
-  
-  #map estimate for phi (ploidy) 
-  # if (estimatePloidy) {
-  #    suppressWarnings(
-  #   estPhi <- optim(phi_prev, fn = phiLikelihoodFun, n = n_prev, lambda = lambda_prev, 
-  #  								params = params, D = D, rho = rhoS, method = "L-BFGS-B",
-  #                 control = list(fnscale = -1, ndeps = 1e-5), lower = intervalPhi[1])#, upper = intervalPhi[2])
-  #  )
-  #  phi_hat <- estPhi$par
-  #}
-  
-  # map estimate for lambda (Student's t precision)
-  # if (estimatePrecision){
-  #for (s in 1:S){
-  #  paramsS <- params
-  #  paramsS$betaLambda <- paramsS$betaLambda[s]
-  #  for (k in 1:K){
-  #		  suppressWarnings(
-  #	  estLambda <- optim(lambda_prev[k, s], fn = lambdaLikelihoodFun, n = n_prev[s], phi = phi_prev, 
-  #										params = paramsS, D = D[, s], rho = rhoS[[s]][k, , drop = FALSE], k = k,
-  #										control = list(fnscale = -1), method = "L-BFGS-B",
-  #										lower = intervalLambda[1])#, upper = intervalLambda[2])
-  
-  
-  #lambda_hat <- matrix(estLambda$par, ncol = S, byrow = TRUE)
-  #  }
-  #}
-  #}
-  #lambda_hat <- estimatePrecisionParamMap(lambda_prev, n_prev, phi_prev, params, D, rho)
-  
-  
-  #rm(a, b, c, d, e)
+
   gc(verbose = FALSE, reset = TRUE)
   #if (verbose == TRUE) {
   #  message("n=", format(n_hat, digits = 2), ", phi=", format(phi_hat, digits = 4), ", lambda=", paste0(format(lambda_hat, digits=2), collapse = " ", sep = ","))
   #}
-  return(list(n = n_hat, sp = sp_hat, phi = phi_hat, lambda = lambda_hat, piG = pi_hat, A = A_hat, F = estLambda$value))
+  return(list(n = n_hat, sp = sp_hat, phi = phi_hat, lambda = lambda_hat, piG = pi_hat, A = A_hat, F = F_lik))
+}
+
+estimateGaussianParamsMap <- function(D, n_prev, sp_prev, phi_prev, var_prev, pi_prev, A_prev, 
+                              params, rho, Zcounts, 
+                              estimateNormal = TRUE, estimatePloidy = TRUE,
+                              estimateVar = TRUE, estimateInitDist = TRUE, 
+                              estimateTransition = TRUE, estimateSubclone = TRUE,
+                              verbose = TRUE) {
+  KS <- nrow(rho)
+  K <- length(params$ct)
+  T <- ncol(rho)
+  S <- length(n_prev)
+  #dimen <- ncol(D)
+  intervalNormal <- c(1e-6, 1 - 1e-6)
+  intervalSubclone <- c(1e-6, 1 - 1e-6)
+  intervalPhi <- c(.Machine$double.eps, 10)
+  
+  # initialize params to be estimated
+  n_hat <- n_prev
+  sp_hat <- sp_prev
+  phi_hat <- phi_prev
+  var_hat <- var_prev
+  #varKS_prev <- as.matrix(expand.grid(as.data.frame(var_prev)))
+  pi_hat <- pi_prev
+  A_hat <- A_prev
+  
+  # Update transition matrix A
+  if (estimateTransition){
+    for (k in 1:KS) {
+      A_hat[k, ] <- Zcounts[k, ] + params$dirPrior[k, ]
+      A_hat[k, ] <- normalize(A_hat[k, ])
+    }
+  }
+  # map estimate for pi (initial state dist)
+  if (estimateInitDist){
+    pi_hat <- estimateMixWeightsParamMap(rho, params$kappa)
+  }
+  
+  # setup simplification variables for responsibilities and data
+  a <- rowSums(rho)
+  b <- rho %*% D
+  c <- rho %*% (D^2)
+
+  # map estimate for normal 
+  if (estimateNormal){
+    for (s in 1:S){
+      funcN <- function(n) { nUpdateEqn(n, sp_prev[s], phi_prev[s], var_prev[, s], 
+                                        params$jointStates[, s], params$jointCNstates[, s], params$jointSCstatus[, s], 
+                                        params$alphaN, params$betaN, a, b[, s]) }
+      n_hat[s] <- tryCatch({
+        uniroot(funcN, intervalNormal, tol = 1e-15)$root
+      }, error = function(x){ 
+        message("ichorCNA updateParameters: Issue maximizing n, using previous iteration (", n_prev[s], ")")
+        return(n_prev[s]) 
+      })
+    }
+  }
+  
+  if (estimateSubclone){
+    for (s in 1:S){
+      funcS <- function(sp) { spUpdateEqn(sp, n_hat[s], phi_prev[s], var_prev[, s], 
+                                         params$jointStates[, s], params$jointCNstates[, s], params$jointSCstatus[, s], 
+                                         params$alphaSp, params$betaSp, a, b[, s]) }
+      sp_hat[s] <- tryCatch({
+        uniroot(funcS, intervalSubclone, tol = 1e-15)$root
+      }, error = function(x){ 
+        message("ichorCNA updateParameters: Issue maximizing sp, using previous iteration (", sp_prev[s], ")")
+        return(sp_prev[s]) 
+      })
+    }
+  } 
+
+  if (estimatePloidy){
+    for (s in 1:S){
+      funcP <- function(phi) { phiUpdateEqn(phi, n_hat[s], sp_hat[s], var_prev[, s], 
+                                            params$jointStates[, s], params$jointCNstates[, s], params$jointSCstatus[, s], 
+                                            params$alphaSp, params$betaSp, a, b[, s]) }
+      phi_hat[s] <- tryCatch({
+        uniroot(funcP, intervalPhi, tol = 1e-15)$root
+      }, error = function(x){ 
+        message("ichorCNA updateParameters: Issue maximizing phi, using previous iteration (", phi_prev[s], ")")
+        return(phi_prev[s]) 
+      })
+    }
+  } 
+  
+  if (estimateVar){
+    for (s in 1:S){
+      var_hat[, s] <- varUpdateEqn(n_hat[s], sp_hat[s], phi_hat[s], params$jointStates[, s], 
+                                 params$jointCNstates[, s], params$jointSCstatus[, s], 
+                                 params$alphaVar[, s], params$betaVar[s], a, b[, s], c[, s])
+    }
+    #covar_hat <- covarIWUpdateEqn(n_hat, sp_hat, phi_hat, params, T, a, b, c)
+  } 
+  
+  #gc(verbose = FALSE, reset = TRUE)
+  #if (verbose == TRUE) {
+  #  message("n=", format(n_hat, digits = 2), ", phi=", format(phi_hat, digits = 4), ", lambda=", paste0(format(lambda_hat, digits=2), collapse = " ", sep = ","))
+  #}
+  return(list(n = n_hat, sp = sp_hat, phi = phi_hat, var = var_hat, piG = pi_hat, A = A_hat))
+}
+
+# Update equation for normal parameter (Gaussian)
+nUpdateEqn <- function(n, sp, phi, var, jointStates, jointCNstates, jointSCstatus, alphaN, betaN, a, b){
+  mus <- as.matrix(get2and3ComponentMixture(data.frame(jointCNstates), data.frame(jointSCstatus), n, sp, phi))
+  KS <- nrow(mus)
+  S <- length(n)
+  cn <- 2
+    G <- jointStates
+  K <- length(unique(G))
+  
+  #dQ_dn <- rep(0, KS)
+  #for (k in 1:KS){ 
+  #  dmu_dn <- (cn - sp * cn - (1 - sp) * ct[k]) / (n * cn + (1 - n) * sp * cn + (1 - n) * (1 - sp) * ct[k]) - 
+  #    (cn - phi)/(n * cn + (1 - n) * phi)
+  #  dQ_dn[k] <-  var[k]^-1 * (b[k] - a[k] * mus[k,1]) * dmu_dn 
+  #}
+  ct <- jointCNstates[!jointSCstatus]
+  dmu_dn <- (cn - ct) / (n * cn + (1 - n) * ct) - (cn - phi) / (n * cn + (1 - n) * phi)
+  dQ_dn.noSC <- var^-1 * (b - a * mus) * dmu_dn
+  
+  ct.s <- jointCNstates[jointSCstatus]
+  if (length(ct.s) > 0){
+    dmu_dn.s <- (cn - sp * cn - (1 - sp) * ct.s) / (n * cn + (1 - n) * sp * cn + (1 - n) * (1 - sp) * ct.s) - 
+      (cn - phi)/(n * cn + (1 - n) * phi)
+    dQ_dn.SC <- var^-1 * (b - a * mus) * dmu_dn.s
+  }else{
+    dQ_dn.SC <- 0
+  }
+  dQ_dn <- sum(dQ_dn.noSC + dQ_dn.SC)
+  dbeta_dn <- (alphaN - 1) / n - (betaN - 1) / (1 - n)
+  f <- dQ_dn + dbeta_dn
+  return(f)
+}
+
+# Update equation for cellular prevalence parameter (Gaussian)
+spUpdateEqn <- function(sp, n, phi, var, jointStates, jointCNstates, jointSCstatus, alphaSp, betaSp, a, b){
+  mus <- as.matrix(get2and3ComponentMixture(data.frame(jointCNstates), data.frame(jointSCstatus), n, sp, phi))
+  KS <- nrow(mus)
+  S <- length(n)
+  cn <- 2
+  ct <- jointCNstates
+  dmu_ds <- ((1 - n) * cn - (1 - n) * ct) / (n * cn + (1 - n) * sp * cn + (1 - n) * (1 - sp) * ct)
+  #dQ_dmu <- b %*%  - a * mus %*% solve(covar)
+  dQ_ds <- var^-1 * (b - a * mus) * dmu_ds
+  dbeta_ds <- (alphaSp - 1) / sp - (betaSp - 1) / (1 - sp)
+  f <- sum(dQ_ds) + dbeta_ds
+  return(f)
+}
+
+# Update equation for tumor ploidy parameter (Gaussian)
+phiUpdateEqn <- function(phi, n, sp, var, jointStates, jointCNstates, jointSCstatus, alphaPhi, betaPhi, a, b){
+  mus <- as.matrix(get2and3ComponentMixture(data.frame(jointCNstates), data.frame(jointSCstatus), n, sp, phi))
+  KS <- nrow(mus)
+  S <- length(n)
+  cn <- 2
+  ct <- jointCNstates
+  dmu_dphi <- -(1 - n) / (n * cn + (1 - n) * phi)
+  #dQ_dmu <- b %*%  - a * mus %*% solve(covar)
+  dQ_dphi <- var^-1 * (b - a * mus) * dmu_dphi
+  dgamma_dphi <- (alphaPhi - 1) / phi - (betaPhi - 1) / (1 - phi)
+  f <- sum(dQ_dphi) + dgamma_dphi
+  return(f)
+}
+
+# Update equation for variance parameter (MVN)
+varUpdateEqn <- function(n, sp, phi, jointStates, jointCNstates, jointSCstatus, alphaVar, betaVar, a, b, c){
+  mus <- as.matrix(get2and3ComponentMixture(data.frame(jointCNstates), data.frame(jointSCstatus), n, sp, phi))
+  KS <- nrow(mus)
+  K <- nrow(param$var)
+  S <- length(n)
+  cn <- 2
+  ct <- jointCNstates
+  # consolidate to K states from K^S expand states
+  # term1 <- rep(0, K)
+  # term2 <- rep(0, K)
+  # for (i in 1:K){
+  #   k <- jointStates == i
+  #   term1[i] <- -sum((c[k] - 2*b[k]*mus[k, 1] + a[k]*mus[k, 1]^2)) 
+  #   term2[i] <- -sum(a[k])
+  # }
+  # term1 <- term1 - 2 * betaVar
+  # term2 <- term2 - 2 * (alphaVar + 1)
+  term1 <- c - 2*b*mus + a*mus^2 + 2*betaVar
+  term2 <- a + 2*(alphaVar + 1)
+  var_hat <- term1 / term2
+  return(var_hat)
+}
+
+# Update equation for covariance parameter (Gaussian)
+covarUpdateEqn <- function(covar, n, sp, phi, params, a, b, c){
+  mus <- as.matrix(get2and3ComponentMixture(params$jointCNstates, params$jointSCstatus, n, sp, phi))
+  KS <- nrow(mus)
+  S <- length(n)
+  cn <- 2
+  ct <- params$jointCNstates
+  dQ_dcovar <- 0
+  for (ks in 1:KS){
+    tmp <- a[ks] * solve(covar) - solve(covar) * 
+      (c[ks, ] - b[ks, ] * mus[ks, ] - mus[ks, ] * b[ks, ] + a[ks] * mus[ks, ] * mus[ks, ]) * solve(covar)
+    dQ_dcovar <- dQ_dcovar + tmp
+  }
+  dig_dcovar <- ((params$nu + S + 1) / 2) * sum(diag(covar)) + 
+    ((params$psi) / 2) * sum(diag(solve(covar) * solve(covar)))
+  f <- dQ_dcovar - dig_dcovar
+  return(f)
+}
+
+# Update equation for covariance parameter (MVN + IW)
+covarIWUpdateEqn <- function(n, sp, phi, params, T, a, b, c){
+  mus <- as.matrix(get2and3ComponentMixture(params$jointCNstates, params$jointSCstatus, n, sp, phi))
+  KS <- nrow(mus)
+  S <- length(n)
+  cn <- 2
+  ct <- params$jointCNstates
+  covar_k <- (c[k] - 2*b[k]*mus[k, ] + a[k]*mus[k, ]^2) / T
+  covar_hat <- (b[k]*params$psi + T*covar_k) / (params$nu + T + S + 1)
+  return(covar_hat)
 }
 
 # Student's t likelihood function #
@@ -429,13 +726,12 @@ stLikelihood <- function(n, sp, phi, lambda, params, D, rho){
   # Recalculate the likelihood
   lambdaKS <- as.matrix(expand.grid(as.data.frame(lambda)))
   mus <- as.matrix(get2and3ComponentMixture(params$jointCNstates, params$jointSCstatus, n, sp, phi))
-  for (ks in 1:KS) {
+  lik <- sapply(1:KS, function(ks){
     probs <- log(tdistPDF(D, mus[ks, ], lambdaKS[ks, ], params$nu))
     # multiply across samples for each data point to get joint likelihood.
     l <- rho[ks, ] %*% rowSums(as.data.frame(probs)) 
-    lik <- lik + as.numeric(l)
-  }
-  return(lik)
+  })
+  return(sum(lik))
 }
 
 ## length of x will depend on which pararmeters are being estimated
@@ -466,66 +762,76 @@ completeLikelihoodFun <- function(x, pType, n, sp, phi, lambda, piG, A, params, 
   }
   
   ## prior probabilities ##
-  prior <- priorProbs(n, sp, phi, lambda, piG, A, params, 
+  prior <- priorProbs(n, sp, phi, lambda, var = NA, piG, A, params, 
                       estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
-                      estimatePrecision = estimatePrecision, estimateTransition = estimateTransition,
-                      estimateInitDist = estimateInitDist, estimateSubclone = estimateSubclone)
+                      estimateVar = estimateVar, estimatePrecision = estimatePrecision, 
+                      estimateTransition = estimateTransition, estimateInitDist = estimateInitDist, 
+                      estimateSubclone = estimateSubclone)
   ## likelihood terms ##
   likObs <- stLikelihood(n, sp, phi, lambda, params, D, rho)
   likInit <- rho[, 1] %*% log(piG)
-  likTxn <- 0
-  for (ks in 1:KS){
-    likTxn <- likTxn + Zcounts[ks, ] %*% log(A[ks, ])
-  }
-  
+  likTxn <- sapply(1:KS, function(ks){
+    Zcounts[ks, ] %*% log(A[ks, ])
+  })
+ 
   ## sum together ##
-  lik <- likObs + likInit + likTxn
+  lik <- likObs + likInit + sum(likTxn)
   prior <- prior$prior
   f <- lik + prior
   return(f)
 }
 
-priorProbs <- function(n, sp, phi, lambda, piG, A, params, 
+priorProbs <- function(n, sp, phi, lambda, var, piG, A, params, 
                        estimateNormal = TRUE, estimatePloidy = TRUE,
-                       estimatePrecision = TRUE, estimateTransition = TRUE,
-                       estimateInitDist = TRUE, estimateSubclone = TRUE){
+                       estimateVar = TRUE, estimatePrecision = TRUE, 
+                       estimateTransition = TRUE, estimateInitDist = TRUE, 
+                       estimateSubclone = TRUE, likModel = 't'){
   S <- params$numberSamples
   K <- length(params$ct)
   KS <- K ^ S
   ## prior terms ##
-  priorA <- 0
+  priorA <- rep(0, KS)
   if (estimateTransition){
-    for (ks in 1:KS){
-      priorA <- priorA + dirichletpdflog(A[ks, ], params$dirPrior[ks, ])
-    }
+    priorA <- sapply(1:KS, function(ks){
+      dirichletpdflog(A[ks, ], params$dirPrior[ks, ])
+    })
   }
-  priorLambda <- 0
-  if (estimatePrecision){
-    for (s in 1:S){
-      for (k in 1:K){
-        priorLambda <- priorLambda + 
-          gammapdflog(as.data.frame(lambda)[k, s], params$alphaLambda[k], params$betaLambda[k, s])
-      }
-    } 
-  }
-  priorLambda <- as.numeric(priorLambda)
+  priorA <- sum(priorA)
   priorN <- 0
   if (estimateNormal){
     priorN <- sum(betapdflog(n, params$alphaN, params$betaN))
   }
   priorSP <- 0
-  if (estimateNormal){
+  if (estimateSubclone){
     priorSP <- sum(betapdflog(sp, params$alphaSp, params$betaSp))
   }
   priorPhi <- 0
   if (estimatePloidy){
     priorPhi <- sum(gammapdflog(phi, params$alphaPhi, params$betaPhi))
   }
+  priorLambda <- 0
+  priorVar <- 0
+  if (param$likModel == "Gaussian"){
+    if (estimateVar){
+      for (s in 1:S){
+        priorVar <- priorVar + 
+          sum(invgammapdflog(as.data.frame(var[, s]), params$alphaVar[, s], params$betaVar[s]))
+      }
+    }
+  }else{ # param$likModel == "t"
+    if (estimatePrecision){
+      for (s in 1:S){
+        priorLambda <- priorLambda + 
+          sum(gammapdflog(as.data.frame(lambda)[, s], params$alphaLambda, params$betaLambda[, s]))
+      }
+      priorLambda <- as.numeric(priorLambda)
+    }
+  }
   priorPi <- 0
   if (estimateInitDist){
     priorPi <- dirichletpdflog(piG, params$kappa)
   }
-  prior <- priorA + priorLambda + priorN + priorSP + priorPhi + priorPi  
+  prior <- priorA + priorLambda + priorVar + priorN + priorSP + priorPhi + priorPi  
   return(list(prior = prior, priorA = priorA, priorLambda = priorLambda, 
               priorN = priorN, priorSP = priorSP, priorPhi = priorPhi, priorPi = priorPi))
 }
