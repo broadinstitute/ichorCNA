@@ -5,6 +5,7 @@ chrs:
 binSize:  1000000 # set window size to compute coverage
 
 ## ichorCNA params ##
+ichorCNA_libdir: /path/to/git/software/ichorCNA
 # included in GitHub repo
 ichorCNA_rscript:  ../runIchorCNA.R
 # use panel matching same bin size (optional)
@@ -16,7 +17,12 @@ ichorCNA_mapWig:  ../../inst/extdata/map_hg19_1000kb.wig
 # use bed file if sample has targeted regions, eg. exome data (optional)
 ichorCNA_exons:  NULL
 ichorCNA_centromere:  ../../inst/extdata/GRCh37.p13_centromere_UCSC-gapTable.txt
+ichorCNA_minMapScore: 0.75
 ichorCNA_chrs:  c(1:22, \"X\")
+ichorCNA_fracReadsInChrYForMale: 0.002
+ichorCNA_genomeBuild:  hg19
+ichorCNA_genomeStyle:  NCBI
+
 # chrs used for training ichorCNA parameters, e.g. tumor fraction. 
 ichorCNA_chrTrain:  c(1:22)
 # non-tumor fraction parameter restart values; higher values should be included for cfDNA
@@ -32,6 +38,10 @@ ichorCNA_scStates:  c(1,3)
 ichorCNA_maxCN:  5
 # TRUE/FALSE to include homozygous deletion state
 ichorCNA_includeHOMD: FALSE
+# Exclude solutions if total length of subclonal CNAs > this fraction of the genome 
+ichorCNA_maxFracGenomeSubclone: 0.5
+# Exclude solutions if total length of subclonal CNAs > this fraction of total CNA length
+ichorCNA_maxFracCNASubclone: 0.7
 # control segmentation - higher (e.g. 0.9999999) leads to higher specificity and fewer segments
 # lower (e.g. 0.99) leads to higher sensitivity and more segments
 ichorCNA_txnE:  0.9999

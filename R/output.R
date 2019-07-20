@@ -1,14 +1,13 @@
 # file:   output.R
 # author: Gavin Ha, Ph.D.
-#         Justin Rhoades
-#               Dana-Farber Cancer Institute
-#               Broad Institute
-# contact: <gavinha@broadinstitute.org>
-# ULP-WGS website: http://www.broadinstitute.org/~gavinha/ULP-WGS/
-# HMMcopy website: http://compbio.bccrc.ca/software/hmmcopy/ and https://www.bioconductor.org/packages/release/bioc/html/HMMcopy.html
-# date:   July 25, 2018
+#		Fred Hutchinson Cancer Research Center
+# contact: <gha@fredhutch.org>
+# author: Justin Rhoades
+#       Dana-Farber Cancer Institute
+#       Broad Institute
+# https://github.com/broadinstitute/ichorCNA
+# date:  July 12, 2019
 # description: Hidden Markov model (HMM) to analyze Ultra-low pass whole genome sequencing (ULP-WGS) data.
-# This script is the main script to run the HMM.
 
 ##################################################
 ###### FUNCTION TO GET OUTPUT HMM RESULTS ########
@@ -31,12 +30,13 @@ outputHMM <- function(cna, segs, results, patientID = NULL, outDir = "."){
     segTmp <- cbind(sample = as.character(id), segs[[s]][, 1:3],
                     event = names[segs[[s]]$copy.number + 1],
                     copy.number = segs[[s]]$copy.number, 
-                    bins = markers, median = segs[[s]]$median)
-    segout <- rbind(segout, segTmp)
+                    bins = markers, median = segs[[s]]$median,
+                    subclone.status=segs[[s]]$subclone.status,
+                    segs[[s]][, 9:ncol(segs[[s]])])
+    segout <- rbind(segout, segTmp[, 1:8])
     ### Re-ordering the columns for output ###
-    shuffleTmp <- segTmp[, c(1, 2, 3, 4, 7, 8, 6, 5)]
-    shuffleTmp$subclone.status <- as.numeric(segs[[s]]$subclone.status)
-    colnames(shuffleTmp) <- c("ID", "chrom", "start", "end", 
+    shuffleTmp <- segTmp[, c(1, 2, 3, 4, 7, 8, 6, 5, 9:ncol(segTmp))]
+    colnames(shuffleTmp)[1:9] <- c("ID", "chrom", "start", "end", 
                               "num.mark", "seg.median.logR", "copy.number", "call", "subclone.status")
     shuffle <- rbind(shuffle, shuffleTmp) 
   }
@@ -48,12 +48,12 @@ outputHMM <- function(cna, segs, results, patientID = NULL, outDir = "."){
   write.table(segout, file = seg_out, quote = FALSE, sep = "\t", row.names = FALSE)
   ### PRINT OUT BIN-LEVEL DATA FOR ALL SAMPLES IN SAME FILE ##
   cnaout <- cbind(cna[[1]][, -c(1)])
-  colnames(cnaout)[4:6] <- paste0(names(cna)[1], ".", colnames(cnaout)[4:6])
+  colnames(cnaout)[4:ncol(cnaout)] <- paste0(names(cna)[1], ".", colnames(cnaout)[4:ncol(cnaout)])
   if (S >= 2) {
     for (s in 2:S){
       id <- names(cna)[s]
       cnaTmp <- cna[[s]][, -c(1)]
-      colnames(cnaTmp)[4:6] <- paste0(id, ".", colnames(cnaTmp)[4:6])
+      colnames(cnaTmp)[4:ncol(cnaTmp)] <- paste0(id, ".", colnames(cnaTmp)[4:ncol(cnaTmp)])
       cnaout <- merge(cnaout, cnaTmp, by = c("chr", "start", "end"))
     }
   }

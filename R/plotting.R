@@ -12,7 +12,7 @@
 
 ## plot solutions for all samples
 plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir, plotSegs = TRUE,
-                          numSamples=1, plotFileType="pdf", plotYLim=c(-2,2),
+                          numSamples=1, plotFileType="pdf", plotYLim=c(-2,2), seqinfo = NULL,
                           estimateScPrevalence=FALSE, maxCN){
   ## for each sample ##
   for (s in 1:numSamples){
@@ -24,7 +24,7 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir, plotSegs = 
     ploidyAll <- (1 - normEst) * ploidyEst + normEst * 2
 
     outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide")
-    plotGWSolution(hmmResults.cor, s, outPlotFile, plotFileType=plotFileType, plotYLim=plotYLim,
+    plotGWSolution(hmmResults.cor, s, outPlotFile, seqinfo, plotFileType=plotFileType, plotYLim=plotYLim,
                    plotSegs=plotSegs, estimateScPrevalence=estimateScPrevalence, main=id)
 
     ### PLOT THE LOG RATIO DATA ALONG WITH COLOUR-CODING FOR PREDICTED CALLS ###
@@ -40,7 +40,7 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir, plotSegs = 
       }			
       par(mfrow=c(1,1))
       plotCNlogRByChr(hmmResults.cor$cna[[s]], segs=hmmResults.cor$results$segs[[s]], chr=i,
-                      ploidy = ploidyAll, plotSegs=plotSegs,
+                      ploidy = ploidyAll, plotSegs=plotSegs, seqinfo = seqinfo,
                       colName="logR", cytoBand=T, yrange=plotYLim, cex=0.75, spacing=8)	
       dev.off()
     }
@@ -82,7 +82,8 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir, plotSegs = 
 }
 
 
-plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf", plotSegs = TRUE,
+plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf", 
+						   seqinfo = NULL, plotSegs = TRUE,
                            plotYLim=c(-2,2), estimateScPrevalence, main,
                            turnDevOn=TRUE, turnDevOff=TRUE){
     ## plot genome wide figures for each solution ##
@@ -107,7 +108,7 @@ plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf", p
     }else{
     	segsToUse <- NULL
     }
-    plotCNlogRByChr(hmmResults.cor$cna[[s]], segs = segsToUse, plotSegs=plotSegs,
+    plotCNlogRByChr(hmmResults.cor$cna[[s]], segs = segsToUse, plotSegs=plotSegs, seqinfo=seqinfo,
                     param = hmmResults.cor$results$param, colName = "logR", chr=NULL, 
                     ploidy = ploidyAll, cytoBand=T, yrange=plotYLim, main=main)  #ylim for plot
     annotStr <- paste0("Tumor Fraction: ", signif(purityEst, digits=4), ", Ploidy: ", signif(ploidyEst, digits=3))
@@ -139,7 +140,7 @@ plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf", p
 #alphaVal = [0,1]
 #geneAnnot is a dataframe with 4 columns: geneSymbol, chr, start, stop
 #spacing is the distance between each track
-plotCNlogRByChr <- function(dataIn, segs, param = NULL, colName = "copy", plotSegs = TRUE, chr=NULL, ploidy = NULL, geneAnnot=NULL, yrange=c(-4,6), xlim=NULL, xaxt = "n", cex = 0.5, gene.cex = 0.5, plot.title = NULL, spacing=4, cytoBand=T, alphaVal=1, main){
+plotCNlogRByChr <- function(dataIn, segs, param = NULL, colName = "copy", plotSegs = TRUE, seqinfo=NULL, chr=NULL, ploidy = NULL, geneAnnot=NULL, yrange=c(-4,6), xlim=NULL, xaxt = "n", cex = 0.5, gene.cex = 0.5, plot.title = NULL, spacing=4, cytoBand=T, alphaVal=1, main){
   #color coding
   alphaVal <- ceiling(alphaVal * 255); class(alphaVal) = "hexmode"
   alphaSubcloneVal <- ceiling(alphaVal / 2 * 255); class(alphaVal) = "hexmode"
@@ -224,7 +225,7 @@ plotCNlogRByChr <- function(dataIn, segs, param = NULL, colName = "copy", plotSe
     par(mar=c(spacing,8,2,2))
     #midpt <- (as.numeric(dataIn[,"end"]) + as.numeric(dataIn[,"start"]))/2
     #coord <- getGenomeWidePositions(dataIn[,"chr"],midpt)
-    coord <- getGenomeWidePositions(dataIn[,"chr"],dataIn[,"end"])
+    coord <- getGenomeWidePositions(dataIn[,"chr"],dataIn[,"end"], seqinfo)
     plot(coord$posns,as.numeric(dataIn[, colName]),
          col=cnCol[as.character(dataIn[,"event"])],pch=16,xaxt="n", ylim=yrange,
          xlim=c(1,as.numeric(coord$posns[length(coord$posns)])),
@@ -235,7 +236,7 @@ plotCNlogRByChr <- function(dataIn, segs, param = NULL, colName = "copy", plotSe
     #plot segments
     
     if (plotSegs){      
-      coordEnd <- getGenomeWidePositions(segs[, "chr"], segs[, "end"])
+      coordEnd <- getGenomeWidePositions(segs[, "chr"], segs[, "end"], seqinfo)
       coordStart <- coordEnd$posns - (segs[, "end"] - segs[, "start"] + 1)
       xlim <- as.numeric(c(1, coordEnd$posns[length(coordEnd$posns)]))
       #col <- cnCol[as.numeric(segs[, "state"] + 1)]
@@ -269,10 +270,10 @@ plotCNlogRByChr <- function(dataIn, segs, param = NULL, colName = "copy", plotSe
 }
 
 
-plotCorrectionGenomeWide <- function(correctOutput, ...) {
+plotCorrectionGenomeWide <- function(correctOutput, seqinfo = NULL, ...) {
   
   midpt <- (start(correctOutput) + end(correctOutput))/2
-  coord <- getGenomeWidePositions(space(correctOutput),midpt)
+  coord <- getGenomeWidePositions(seqnames(correctOutput),midpt, seqinfo)
   
   
   par(mfrow = c(3, 1))
@@ -293,17 +294,17 @@ plotCorrectionGenomeWide <- function(correctOutput, ...) {
   r <- c(min(y, na.rm = TRUE), max(y, na.rm = TRUE))
   plot(pos[set], y, ylab = "Estimated Copy", xaxt="n",
        main = paste("Uncorrected Readcount, MAD = ", m), ylim = r, ...)
-  plotChrLines(as.vector(unique(space(correctOutput))),coord$chrBkpt,yrange=r+c(-0.5,0.5))
+  plotChrLines(as.vector(unique(seqnames(correctOutput))),coord$chrBkpt,yrange=r+c(-0.5,0.5))
   m <- signif(mad(correctOutput$cor.gc[set], na.rm = TRUE), digits = 3)
   plot(pos[set], correctOutput$cor.gc[set], xaxt="n",
        ylab = "Estimated Copy",
        main = paste("CG-corrected Readcount, MAD = ", m), ylim = r, ...)
-  plotChrLines(as.vector(unique(space(correctOutput))),coord$chrBkpt,yrange=r+c(-0.5,0.5))
+  plotChrLines(as.vector(unique(seqnames(correctOutput))),coord$chrBkpt,yrange=r+c(-0.5,0.5))
   m <- signif(mad(correctOutput$cor.map[set], na.rm = TRUE), digits = 3)
   plot(pos[set], correctOutput$cor.map[set], xaxt="n", ylab = "Estimated Copy",
        main = paste("Mappability and GC-corrected Readcount, MAD = ", m),
        ylim = r, ...)
-  plotChrLines(as.vector(unique(space(correctOutput))),coord$chrBkpt,yrange=r+c(-0.5,0.5))
+  plotChrLines(as.vector(unique(seqnames(correctOutput))),coord$chrBkpt,yrange=r+c(-0.5,0.5))
 }
 
 ##################################################
@@ -323,21 +324,40 @@ plotChrLines <- function(chrs,chrBkpt,yrange){
   axis(side=1,at=mid,labels=c(chrsToShow),cex.axis=1.5,tick=FALSE)
 }
 
-getGenomeWidePositions <- function(chrs,posns){  
-  #create genome coordinate scaffold
-  positions <- as.numeric(posns)
-  chrsNum <- unique(chrs)
-  chrBkpt <- rep(0,length(chrsNum)+1)
-  for (i in 2:length(chrsNum)){
-    chrInd <- which(chrs==chrsNum[i])
-    prevChrPos <- positions[chrInd[1]-1]      
-    chrBkpt[i] = prevChrPos
-    positions[chrInd] = positions[chrInd] + prevChrPos
-  }
-  chrBkpt[i+1] <- positions[length(positions)]
-  return(list(posns=positions,chrBkpt=chrBkpt))
-}
+# getGenomeWidePositions <- function(chrs,posns){  
+#   #create genome coordinate scaffold
+#   positions <- as.numeric(posns)
+#   chrsNum <- unique(chrs)
+#   chrBkpt <- rep(0,length(chrsNum)+1)
+#   for (i in 2:length(chrsNum)){
+#     chrInd <- which(chrs==chrsNum[i])
+#     prevChrPos <- positions[chrInd[1]-1]      
+#     chrBkpt[i] = prevChrPos
+#     positions[chrInd] = positions[chrInd] + prevChrPos
+#   }
+#   chrBkpt[i+1] <- positions[length(positions)]
+#   return(list(posns=positions,chrBkpt=chrBkpt))
+# }
 
+getGenomeWidePositions <- function(chrs, posns, seqinfo = NULL) {
+    # create genome coordinate scaffold
+    positions <- as.numeric(posns)
+    chrsNum <- unique(chrs)
+    chrBkpt <- rep(0, length(chrsNum) + 1)
+    prevChrPos <- 0
+    for (i in 2:length(chrsNum)) {
+        chrInd <- which(chrs == chrsNum[i])
+        if (!is.null(seqinfo)){
+        	prevChrPos <- seqlengths(seqinfo)[i-1] + prevChrPos
+        }else{
+        	prevChrPos <- positions[chrInd[1] - 1]
+        }
+        chrBkpt[i] = prevChrPos
+        positions[chrInd] = positions[chrInd] + prevChrPos
+    }
+    chrBkpt[i + 1] <- positions[length(positions)]
+    return(list(posns = positions, chrBkpt = chrBkpt))
+}
 
 #stateCols <- function() {
 #  return(c("#74C476", "#238B45", "#00008B", "#A50F15", "#DE2D26", "#FB6A4A", "#FB6A4A", "#FB6A4A", "#FB6A4A", "#FB6A4A", "#FB6A4A", "#FB6A4A"))

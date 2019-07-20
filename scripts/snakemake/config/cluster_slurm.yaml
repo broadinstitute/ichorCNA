@@ -1,0 +1,15 @@
+__default__:
+    partition:  campus # users specified
+    mem:    4G
+    time:   "1:0:0"
+    ncpus:  1
+    ntasks: 1
+    output: logs/cluster/{rule}.%A.out
+
+read_counter:
+    time:   "5:0:0"
+    mem:    4G
+    
+ichorCNA:
+    time:   "100:0:0"
+    mem:    10G

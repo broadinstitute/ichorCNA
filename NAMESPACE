@@ -1,3 +1,4 @@
 import(HMMcopy, plyr, GenomeInfoDb)
 export(loadReadCountsFromWig, normalizeByPanelOrMatchedNormal, getDefaultParameters,
-       HMMsegment, plotGWSolution, outputHMM, outputParametersToFile, plotSolutions)
+       HMMsegment, plotGWSolution, correctIntegerCN, getSeqInfo, 
+       wigToGRanges, outputHMM, outputParametersToFile, plotSolutions)
