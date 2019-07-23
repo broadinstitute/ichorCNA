@@ -54,7 +54,7 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir, plotSegs = 
       outPlotFile <- paste0(outPlotFile, ".pdf")
       pdf(outPlotFile,width=10,height=12)
     }
-    plotCorrectionGenomeWide(tumour_copy[[s]], pch = ".")
+    plotCorrectionGenomeWide(tumour_copy[[s]], seqinfo = seqinfo, pch = ".")
     dev.off()
 
     ### PLOT THE BIAS ###
@@ -317,11 +317,12 @@ plotChrLines <- function(chrs,chrBkpt,yrange){
   }
   numLines <- length(chrBkpt)
   mid <- (chrBkpt[1:(numLines-1)]+chrBkpt[2:numLines])/2
-  chrs <- mapSeqlevels(as.vector(chrs), style = "NCBI")
-  chrs[chrs=="X"] <- 23; chrs[chrs=="Y"] <- 24;
-  chrsToShow <- sort(unique(as.numeric(chrs)))
-  chrsToShow[chrsToShow==23] <- "X"; chrsToShow[chrsToShow==24] <- "Y";
-  axis(side=1,at=mid,labels=c(chrsToShow),cex.axis=1.5,tick=FALSE)
+  #chrs <- mapSeqlevels(as.vector(chrs), style = "NCBI")
+  if (seqlevelsStyle(chrs)[1] != "NCBI"){
+  	seqlevelsStyle(chrs) <- "NCBI"
+  }
+  chrs <- sortSeqlevels(unique(chrs))
+  axis(side=1,at=mid,labels=c(chrs),cex.axis=1.5,tick=FALSE)
 }
 
 # getGenomeWidePositions <- function(chrs,posns){  
@@ -345,16 +346,19 @@ getGenomeWidePositions <- function(chrs, posns, seqinfo = NULL) {
     chrsNum <- unique(chrs)
     chrBkpt <- rep(0, length(chrsNum) + 1)
     prevChrPos <- 0
-    for (i in 2:length(chrsNum)) {
-        chrInd <- which(chrs == chrsNum[i])
-        if (!is.null(seqinfo)){
-        	prevChrPos <- seqlengths(seqinfo)[i-1] + prevChrPos
-        }else{
-        	prevChrPos <- positions[chrInd[1] - 1]
-        }
-        chrBkpt[i] = prevChrPos
-        positions[chrInd] = positions[chrInd] + prevChrPos
-    }
+    i <- 1
+    if (length(chrsNum) > 1){
+		for (i in 2:length(chrsNum)) {
+			chrInd <- which(chrs == chrsNum[i])
+			if (!is.null(seqinfo)){
+				prevChrPos <- seqlengths(seqinfo)[i-1] + prevChrPos
+			}else{
+				prevChrPos <- positions[chrInd[1] - 1]
+			}
+			chrBkpt[i] = prevChrPos
+			positions[chrInd] = positions[chrInd] + prevChrPos
+		}
+	}
     chrBkpt[i + 1] <- positions[length(positions)]
     return(list(posns = positions, chrBkpt = chrBkpt))
 }

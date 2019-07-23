@@ -153,7 +153,7 @@ centromere <- read.delim(centromere,header=T,stringsAsFactors=F,sep="\t")
 save.image(outImage)
 ## LOAD IN WIG FILES ##
 numSamples <- nrow(wigFiles)
-tumour_counts <- list()
+
 tumour_copy <- list()
 for (i in 1:numSamples) {
   id <- wigFiles[i,1]
@@ -228,8 +228,6 @@ for (i in 1:numSamples) {
 	write.table(outMat, file=outFile, row.names=F, col.names=T, quote=F, sep="\t")
 
 } ## end of for each sample
-
-tumour_copy <- as(tumour_copy, "GRangesList")
 
 chrInd <- as.character(seqnames(tumour_copy[[1]])) %in% chrTrain
 ## get positions that are valid
@@ -415,6 +413,6 @@ outputParametersToFile(hmmResults.cor, file = outFile)
 
 ## plot solutions for all samples 
 plotSolutions(hmmResults.cor, tumour_copy, chrs, outDir, numSamples=numSamples,
-              plotFileType=plotFileType, plotYLim=plotYLim, 
+              plotFileType=plotFileType, plotYLim=plotYLim, seqinfo = seqinfo,
               estimateScPrevalence=estimateScPrevalence, maxCN=maxCN)
 
