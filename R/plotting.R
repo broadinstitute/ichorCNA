@@ -343,6 +343,7 @@ plotChrLines <- function(chrs,chrBkpt,yrange){
 getGenomeWidePositions <- function(chrs, posns, seqinfo = NULL) {
     # create genome coordinate scaffold
     positions <- as.numeric(posns)
+    chrs <- as.character(chrs)
     chrsNum <- unique(chrs)
     chrBkpt <- rep(0, length(chrsNum) + 1)
     prevChrPos <- 0
