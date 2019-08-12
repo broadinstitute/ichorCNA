@@ -1,15 +1,14 @@
 # file:   ichorCNA.R
-# author: Gavin Ha, Ph.D.
-#               Dana-Farber Cancer Institute
-#               Broad Institute
-# contact: <gavinha@broadinstitute.org>
+# authors: Gavin Ha, Ph.D.
+#          Fred Hutch
+# contact: <gha@fredhutch.org>
+#
 #         Justin Rhoades
-#               Broad Institute
+#          Broad Institute
 # contact: <rhoades@broadinstitute.org>
 
 # ichorCNA: https://github.com/broadinstitute/ichorCNA
-# HMMcopy website: http://compbio.bccrc.ca/software/hmmcopy/ and https://www.bioconductor.org/packages/release/bioc/html/HMMcopy.html
-# date:   August 1, 2018
+# date:   July 24, 2019
 # description: Hidden Markov model (HMM) to analyze Ultra-low pass whole genome sequencing (ULP-WGS) data.
 # This script is the main script to run the HMM.
 
@@ -307,16 +306,14 @@ for (n in normal){
 		id <- names(hmmResults.cor$cna)[s]
 
 		# correct integer copy number based on estimated purity and ploidy
-    	hmmResults.cor$cna[[s]] <- correctIntegerCN(cn = hmmResults.cor$cna[[s]], logRColName = "logR",
+ 		correctedResults <- correctIntegerCN(cn = hmmResults.cor$cna[[s]],
+   				segs = hmmResults.cor$results$segs[[s]], 
     			purity = 1 - hmmResults.cor$results$n[s, iter], ploidy = hmmResults.cor$results$phi[s, iter],
     			cellPrev = 1 - hmmResults.cor$results$sp[s, iter], 
     			maxCNtoCorrect.autosomes = maxCN, maxCNtoCorrect.X = maxCN, minPurityToCorrect = 0.03, 
-    			gender = gender$gender, chrs = chrs, correctHOMD = FALSE)
-		hmmResults.cor$results$segs[[s]] <- correctIntegerCN(cn = hmmResults.cor$results$segs[[s]], logRColName = "median",
-    			purity = 1 - hmmResults.cor$results$n[s, iter], ploidy = hmmResults.cor$results$phi[s, iter],
-    			cellPrev = 1 - hmmResults.cor$results$sp[s, iter], 
-    			maxCNtoCorrect.autosomes = maxCN, maxCNtoCorrect.X = maxCN, minPurityToCorrect = 0.03, 
-    			gender = gender$gender, chrs = chrs, correctHOMD = FALSE)
+    			gender = gender$gender, chrs = chrs, correctHOMD = includeHOMD)
+		hmmResults.cor$results$segs[[s]] <- correctedResults$segs
+		hmmResults.cor$cna[[s]] <- correctedResults$cn
 		## convert full diploid solution (of chrs to train) to have 1.0 normal or 0.0 purity
 		## check if there is an altered segment that has at least a minimum # of bins
 		segsS <- hmmResults.cor$results$segs[[s]]
@@ -342,6 +339,7 @@ for (n in normal){
 		outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide_", "n", n, "-p", p)
 		mainName[counter] <- paste0(id, ", n: ", n, ", p: ", p, ", log likelihood: ", signif(hmmResults.cor$results$loglik[hmmResults.cor$results$iter], digits = 4))
 		plotGWSolution(hmmResults.cor, s=s, outPlotFile=outPlotFile, plotFileType=plotFileType, 
+          logR.column = "logR", call.column = "Corrected_Call",
 					 plotYLim=plotYLim, estimateScPrevalence=estimateScPrevalence, seqinfo=seqinfo, main=mainName[counter])
     }
     iter <- hmmResults.cor$results$iter
@@ -394,6 +392,7 @@ for(i in 1:length(ind)) {
   	turnDevOff <- TRUE
   }
   plotGWSolution(hmmResults.cor, s=s, outPlotFile=outPlotFile, plotFileType="pdf", 
+                     logR.column = "logR", call.column = "Corrected_Call",
                      plotYLim=plotYLim, estimateScPrevalence=estimateScPrevalence, 
                      seqinfo = seqinfo,
                      turnDevOn = turnDevOn, turnDevOff = turnDevOff, main=mainName[ind[i]])
@@ -413,6 +412,7 @@ outputParametersToFile(hmmResults.cor, file = outFile)
 
 ## plot solutions for all samples 
 plotSolutions(hmmResults.cor, tumour_copy, chrs, outDir, numSamples=numSamples,
+              logR.column = "logR", call.column = "Corrected_Call",
               plotFileType=plotFileType, plotYLim=plotYLim, seqinfo = seqinfo,
               estimateScPrevalence=estimateScPrevalence, maxCN=maxCN)
 

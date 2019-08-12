@@ -1,17 +1,18 @@
 # file:   plotting.R
 # author: Gavin Ha, Ph.D.
-#         Justin Rhoades
-#               Dana-Farber Cancer Institute
-#               Broad Institute
-# contact: <gavinha@broadinstitute.org>
-# ULP-WGS website: http://www.broadinstitute.org/~gavinha/ULP-WGS/
-# HMMcopy website: http://compbio.bccrc.ca/software/hmmcopy/ and https://www.bioconductor.org/packages/release/bioc/html/HMMcopy.html
-# date:   Oct 26, 2016
+#         Fred Hutchinson Cancer Research Center
+# contact: <gha@fredhutch.org>
+# 
+# author: Justin Rhoades, Broad Institute
+#
+# ichorCNA website: https://github.com/broadinstitute/ichorCNA
+# date:   August 12, 2019
 # description: Hidden Markov model (HMM) to analyze Ultra-low pass whole genome sequencing (ULP-WGS) data.
-# This script is the main script to run the HMM.
+# This file contains R functions for plotting.
 
 ## plot solutions for all samples
-plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir, plotSegs = TRUE,
+plotSolutions <- function(hmmResults.cor, tumour_copy, logR.column = "logR", call.column = "event", 
+					      chrs, outDir, plotSegs = TRUE,
                           numSamples=1, plotFileType="pdf", plotYLim=c(-2,2), seqinfo = NULL,
                           estimateScPrevalence=FALSE, maxCN){
   ## for each sample ##
@@ -24,7 +25,9 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir, plotSegs = 
     ploidyAll <- (1 - normEst) * ploidyEst + normEst * 2
 
     outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide")
-    plotGWSolution(hmmResults.cor, s, outPlotFile, seqinfo, plotFileType=plotFileType, plotYLim=plotYLim,
+    plotGWSolution(hmmResults.cor, s, outPlotFile, seqinfo, 
+    			   logR.column = logR.column, call.column = call.column, 
+    			   plotFileType=plotFileType, plotYLim=plotYLim,
                    plotSegs=plotSegs, estimateScPrevalence=estimateScPrevalence, main=id)
 
     ### PLOT THE LOG RATIO DATA ALONG WITH COLOUR-CODING FOR PREDICTED CALLS ###
@@ -41,7 +44,8 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir, plotSegs = 
       par(mfrow=c(1,1))
       plotCNlogRByChr(hmmResults.cor$cna[[s]], segs=hmmResults.cor$results$segs[[s]], chr=i,
                       ploidy = ploidyAll, plotSegs=plotSegs, seqinfo = seqinfo,
-                      colName="logR", cytoBand=T, yrange=plotYLim, cex=0.75, spacing=8)	
+                      logR.column = logR.column, call.column = call.column, 
+                      cytoBand=T, yrange=plotYLim, cex=0.75, spacing=8)	
       dev.off()
     }
 
@@ -83,7 +87,8 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir, plotSegs = 
 
 
 plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf", 
-						   seqinfo = NULL, plotSegs = TRUE,
+						   logR.column = "logR", call.column = "event",
+						   seqinfo = NULL, plotSegs = TRUE, 
                            plotYLim=c(-2,2), estimateScPrevalence, main,
                            turnDevOn=TRUE, turnDevOff=TRUE){
     ## plot genome wide figures for each solution ##
@@ -109,7 +114,8 @@ plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf",
     	segsToUse <- NULL
     }
     plotCNlogRByChr(hmmResults.cor$cna[[s]], segs = segsToUse, plotSegs=plotSegs, seqinfo=seqinfo,
-                    param = hmmResults.cor$results$param, colName = "logR", chr=NULL, 
+                    param = hmmResults.cor$results$param, chr=NULL,
+                    logR.column = logR.column, call.column = call.column,  
                     ploidy = ploidyAll, cytoBand=T, yrange=plotYLim, main=main)  #ylim for plot
     annotStr <- paste0("Tumor Fraction: ", signif(purityEst, digits=4), ", Ploidy: ", signif(ploidyEst, digits=3))
     if (!is.null(coverage)){
@@ -140,7 +146,7 @@ plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf",
 #alphaVal = [0,1]
 #geneAnnot is a dataframe with 4 columns: geneSymbol, chr, start, stop
 #spacing is the distance between each track
-plotCNlogRByChr <- function(dataIn, segs, param = NULL, colName = "copy", plotSegs = TRUE, seqinfo=NULL, chr=NULL, ploidy = NULL, geneAnnot=NULL, yrange=c(-4,6), xlim=NULL, xaxt = "n", cex = 0.5, gene.cex = 0.5, plot.title = NULL, spacing=4, cytoBand=T, alphaVal=1, main){
+plotCNlogRByChr <- function(dataIn, segs, param = NULL, logR.column = "logR", call.column = "event", plotSegs = TRUE, seqinfo=NULL, chr=NULL, ploidy = NULL, geneAnnot=NULL, yrange=c(-4,6), xlim=NULL, xaxt = "n", cex = 0.5, gene.cex = 0.5, plot.title = NULL, spacing=4, cytoBand=T, alphaVal=1, main){
   #color coding
   alphaVal <- ceiling(alphaVal * 255); class(alphaVal) = "hexmode"
   alphaSubcloneVal <- ceiling(alphaVal / 2 * 255); class(alphaVal) = "hexmode"
@@ -157,7 +163,7 @@ plotCNlogRByChr <- function(dataIn, segs, param = NULL, colName = "copy", plotSe
 #  }
   # adjust for ploidy #
   if (!is.null(ploidy)){
-    dataIn[, colName] <- as.numeric(dataIn[, colName]) + log2(ploidy / 2)
+    dataIn[, logR.column] <- as.numeric(dataIn[, logR.column]) + log2(ploidy / 2)
     
     if (!is.null(segs)){
       segs[, "median"] <- segs[, "median"] + log2(ploidy / 2)
@@ -183,7 +189,7 @@ plotCNlogRByChr <- function(dataIn, segs, param = NULL, colName = "copy", plotSe
         plot.title <- paste("Chromosome ",i,sep="")
       }
       ## plot logR for bins ##
-      plot(coord,as.numeric(dataByChr[, colName]),col=cnCol[dataByChr[,"event"]],
+      plot(coord,as.numeric(dataByChr[, logR.column]),col=cnCol[dataByChr[, call.column]],
            pch=16, ylim=yrange,
            xlim=xlim, xaxt = xaxt, xlab="",ylab="Copy Number (log2 ratio)",
            cex.lab=1.5,cex.axis=1.5, cex=cex,las=1)
@@ -194,7 +200,7 @@ plotCNlogRByChr <- function(dataIn, segs, param = NULL, colName = "copy", plotSe
         segsByChr <- segs[segs[,"chr"]==as.character(i),,drop=FALSE]
         ind <- segsByChr$subclone.status == FALSE
         apply(segsByChr[ind, ], 1, function(x){
-          lines(x[c("start","end")], rep(x["median"], 2), col = cnCol[x["event"]], lwd = 3)
+          lines(x[c("start","end")], rep(x["median"], 2), col = cnCol[x[call.column]], lwd = 3)
           invisible()
         })
         if (sum(!ind) > 0){
@@ -226,8 +232,8 @@ plotCNlogRByChr <- function(dataIn, segs, param = NULL, colName = "copy", plotSe
     #midpt <- (as.numeric(dataIn[,"end"]) + as.numeric(dataIn[,"start"]))/2
     #coord <- getGenomeWidePositions(dataIn[,"chr"],midpt)
     coord <- getGenomeWidePositions(dataIn[,"chr"],dataIn[,"end"], seqinfo)
-    plot(coord$posns,as.numeric(dataIn[, colName]),
-         col=cnCol[as.character(dataIn[,"event"])],pch=16,xaxt="n", ylim=yrange,
+    plot(coord$posns,as.numeric(dataIn[, logR.column]),
+         col=cnCol[as.character(dataIn[,call.column])],pch=16,xaxt="n", ylim=yrange,
          xlim=c(1,as.numeric(coord$posns[length(coord$posns)])),
          xlab="",ylab="Copy Number (log2 ratio)",
          cex.lab=1.5,cex.axis=1.5,cex=0.5,las=1,bty="n",
@@ -240,7 +246,7 @@ plotCNlogRByChr <- function(dataIn, segs, param = NULL, colName = "copy", plotSe
       coordStart <- coordEnd$posns - (segs[, "end"] - segs[, "start"] + 1)
       xlim <- as.numeric(c(1, coordEnd$posns[length(coordEnd$posns)]))
       #col <- cnCol[as.numeric(segs[, "state"] + 1)]
-      col <- cnCol[segs[, "event"]]
+      col <- cnCol[segs[, call.column]]
       #write.table(segs, "~/Documents/multisample/segs_debug.seg", quote=F, sep="\t", row.names=F)  ## debug
       value <- as.numeric(segs[, "median"])
       sc.status <- as.logical(segs[, "subclone.status"])
@@ -343,6 +349,7 @@ plotChrLines <- function(chrs,chrBkpt,yrange){
 getGenomeWidePositions <- function(chrs, posns, seqinfo = NULL) {
     # create genome coordinate scaffold
     positions <- as.numeric(posns)
+    chrs <- as.character(chrs)
     chrsNum <- unique(chrs)
     chrBkpt <- rep(0, length(chrsNum) + 1)
     prevChrPos <- 0

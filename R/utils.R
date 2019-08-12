@@ -314,7 +314,7 @@ correctReadCounts <- function(x, chrNormalize = c(1:22), mappability = 0.9, samp
 
 ## Recompute integer CN for high-level amplifications ##
 ## compute logR-corrected copy number ##
-correctIntegerCN <- function(cn, logRColName = "logR", callColName = "event", 
+correctIntegerCN <- function(cn, segs, callColName = "event", 
 		purity, ploidy, cellPrev, maxCNtoCorrect.autosomes = NULL, 
 		maxCNtoCorrect.X = NULL, correctHOMD = TRUE, minPurityToCorrect = 0.2, gender = "male", chrs = c(1:22, "X")){
 	names <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP", rep("HLAMP", 1000))
@@ -330,44 +330,73 @@ correctIntegerCN <- function(cn, logRColName = "logR", callColName = "event",
 		maxCNtoCorrect.X <- max(segs[segs$chr == chrXStr, "copy.number"], na.rm=TRUE)
 	}
 	## correct log ratio and compute corrected CN
-	cellPrev.cn <- rep(1, nrow(cn))
-	cellPrev.cn[as.logical(cn$subclone.status)] <- cellPrev
-	cn$logR_Copy_Number <- logRbasedCN(cn[[logRColName]], purity, ploidy, cellPrev.cn, cn=2)
+	cellPrev.seg <- rep(1, nrow(segs))
+	cellPrev.seg[as.logical(segs$subclone.status)] <- cellPrev
+	segs$logR_Copy_Number <- logRbasedCN(segs[["median"]], purity, ploidy, cellPrev.seg, cn=2)
 	if (gender == "male" & length(chrXStr) > 0){ ## analyze chrX separately
-		ind.cnChrX <- which(cn$chr == chrXStr)
-		cn$logR_Copy_Number[ind.cnChrX] <- logRbasedCN(cn[[logRColName]][ind.cnChrX], purity, ploidy, cellPrev.cn[ind.cnChrX], cn=1)
+		ind.cnChrX <- which(segs$chr == chrXStr)
+		segs$logR_Copy_Number[ind.cnChrX] <- logRbasedCN(segs[["median"]][ind.cnChrX], purity, ploidy, cellPrev.seg[ind.cnChrX], cn=1)
 	}
 
 	## assign copy number to use - Corrected_Copy_Number
 	# same ichorCNA calls for autosomes - no change in copy number
-	cn$Corrected_Copy_Number <- as.integer(cn$copy.number)
-	cn$Corrected_Call <- cn[[callColName]]
+	segs$Corrected_Copy_Number <- as.integer(segs$copy.number)
+	segs$Corrected_Call <- segs[[callColName]]
 
+	ind.change <- c()
 	if (purity >= minPurityToCorrect){
 		# ichorCNA calls adjusted for >= copies - HLAMP
-		ind.cn <- which(cn$chr %in% chrs & cn$copy.number >= maxCNtoCorrect.autosomes)
-		cn$Corrected_Copy_Number[ind.cn] <- as.integer(round(cn$logR_Copy_Number[ind.cn]))
-
-	# ichorCNA calls adjust for HOMD
-	if (correctHOMD){
-		ind.cn <- which(cn$chr %in% chrs & cn$copy.number == 0)
-		cn$Corrected_Copy_Number[ind.cn] <- as.integer(round(cn$logR_Copy_Number[ind.cn]))
-	}
-		# Adjust chrX copy number if purity is sufficiently high
-		# males - all data points in chrX is corrected
-		# females - only maxCN data points
+		# perform on all chromosomes
+		ind.cn <- which(segs$copy.number >= maxCNtoCorrect.autosomes | 
+						segs$logR_Copy_Number >= maxCNtoCorrect.autosomes * 1.2)
+		segs$Corrected_Copy_Number[ind.cn] <- as.integer(round(segs$logR_Copy_Number[ind.cn]))
+		segs$Corrected_Call[ind.cn] <- names[segs$Corrected_Copy_Number[ind.cn] + 1]
+		ind.change <- c(ind.change, ind.cn)
+		
+		# ichorCNA calls adjust for HOMD
+		if (correctHOMD){
+			ind.cn <- which(segs$chr %in% chrs & 
+				(segs$copy.number == 0 | segs$logR_Copy_Number == 1/2^6))
+			segs$Corrected_Copy_Number[ind.cn] <- as.integer(round(segs$logR_Copy_Number[ind.cn]))
+			segs$Corrected_Call[ind.cn] <- names[segs$Corrected_Copy_Number[ind.cn] + 1]
+			ind.change <- c(ind.change, ind.cn)
+		}
+		# Re-adjust chrX copy number for males (females already handled above)
 		if (gender == "male" & length(chrXStr) > 0){
-			ind.cn <- which(cn$chr == chrXStr)
-			cn$Corrected_Copy_Number[ind.cn] <- as.integer(round(cn$logR_Copy_Number[ind.cn]))
-			cn$Corrected_Call[ind.cn] <- names[cn$Corrected_Copy_Number[ind.cn] + 2]
-		}else if (gender == "female"){
-			ind.cn <- which(cn$chr == chrXStr & cn$copy.number >= maxCNtoCorrect.X)
-			cn$Corrected_Copy_Number[ind.cn] <- as.integer(round(cn$logR_Copy_Number[ind.cn]))
-			cn$Corrected_Call[ind.cn] <- names[cn$Corrected_Copy_Number[ind.cn] + 1]
+			ind.cn <- which(segs$chr == chrXStr & 
+				(segs$copy.number >= maxCNtoCorrect.X | segs$logR_Copy_Number >= maxCNtoCorrect.X * 1.2))
+			segs$Corrected_Copy_Number[ind.cn] <- as.integer(round(segs$logR_Copy_Number[ind.cn]))
+			segs$Corrected_Call[ind.cn] <- names[segs$Corrected_Copy_Number[ind.cn] + 2]
+			ind.change <- c(ind.change, ind.cn)
 		}
 	}
-	
-	return(cn)
+	## adjust the bin level data ##
+	# 1) assign the original calls
+	cn$Corrected_Copy_Number <- as.integer(cn$copy.number)
+	cn$Corrected_Call <- cn[[callColName]]
+	cellPrev.cn <- rep(1, nrow(cn))
+	cellPrev.cn[as.logical(cn$subclone.status)] <- cellPrev
+	cn$logR_Copy_Number <- logRbasedCN(cn[["logR"]], purity, ploidy, cellPrev.cn, cn=2)
+	if (gender == "male" & length(chrXStr) > 0){ ## analyze chrX separately
+		ind.cnChrX <- which(cn$chr == chrXStr)
+		cn$logR_Copy_Number[ind.cnChrX] <- logRbasedCN(cn[["logR"]][ind.cnChrX], purity, ploidy, cellPrev.cn[ind.cnChrX], cn=1)
+	}
+
+	# 2) find which segs changed/adjusted
+	ind.change <- unique(ind.change)
+	# 3) correct bins overlapping adjusted segs
+	cn.gr <- as(cn, "GRanges")
+	segs.gr <- as(segs, "GRanges")
+	hits <- findOverlaps(query = cn.gr, subject = segs.gr[ind.change])
+	cn$Corrected_Copy_Number[queryHits(hits)] <- segs$Corrected_Copy_Number[ind.change][subjectHits(hits)]
+	cn$Corrected_Call[queryHits(hits)] <- segs$Corrected_Call[ind.change][subjectHits(hits)]
+	# 4) correct bins that are missed as high level amplifications
+	ind.cn <- which(cn$copy.number >= maxCNtoCorrect.autosomes | 
+ 					cn$logR_Copy_Number >= maxCNtoCorrect.autosomes * 1.2)
+ 	ind.cn <- setdiff(ind.cn, queryHits(hits))
+ 	cn$Corrected_Copy_Number[ind.cn] <- as.integer(round(cn$logR_Copy_Number[ind.cn]))
+ 	cn$Corrected_Call[ind.cn] <- names[cn$Corrected_Copy_Number[ind.cn] + 1]
+	return(list(cn = cn, segs = segs))
 }
 
 
