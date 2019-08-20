@@ -16,7 +16,7 @@ HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL,
     estimateInitDist = TRUE, likModel = 't', logTransform = FALSE, verbose = TRUE) {
   	chr <- as.factor(seqnames(x[[1]]))
 	# setup columns for multiple samples #
-	dataMat <- as.matrix(as.data.frame(lapply(x, function(y) { mcols(x[[1]])[, dataType] })))
+	dataMat <- as.matrix(as.data.frame(lapply(x, function(y) { mcols(y)[, dataType] })))
 	
 	# normalize by median and log data #
 	if (logTransform){
@@ -162,18 +162,23 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2,
 	#param$betaLambda <- betaLambdaVal #t(replicate(K, betaLambdaVal))
 	param$betaLambda <- matrix(betaLambdaVal, ncol = param$numberSamples, nrow = K, byrow = TRUE)
   param$alphaLambda <- rep(param$alphaLambda, K)
-  #if (likModel == "Gaussian"){
+  if (likModel == "Gaussian"){
     param$psi <- diag(param$numberSamples) # parameter for inverse-wishart prior
     param$nu
-    covar <- getCovarianceMatrix(x)
-    param$cor <- covar$cor
-    param$covar <- covar$covar
+    if (numSamples > 1){
+      covar <- getCovarianceMatrix(x)
+      param$cor <- covar$cor
+      param$covar <- covar$covar
+    }else{
+      param$cor <- var(x)
+      param$covar <- 1
+    }
     #param$var <- t(replicate(K, diag(covar$covar)))
-    param$var <- matrix(apply(copy, 2, var, na.rm=T), ncol = S, nrow = K, byrow = TRUE)
+    param$var <- matrix(apply(x, 2, var, na.rm=T), ncol = S, nrow = K, byrow = TRUE)
     param$betaVar <- rep(param$betaVar, S)
     alphaVar <- param$betaVar / (apply(x, 2, var, na.rm = TRUE) / sqrt(K))
     param$alphaVar <- matrix(alphaVar, ncol = S, nrow = KS, byrow = TRUE)
-  #}
+  }
 
 	logR.var <- 1 / ((apply(x, 2, sd, na.rm = TRUE) / sqrt(K)) ^ 2)
 	if (!is.null(dim(x))){ # multiple samples (columns)
