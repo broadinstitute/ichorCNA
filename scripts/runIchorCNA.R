@@ -367,6 +367,7 @@ save.image(outImage)
 #save(tumour_copy, results, loglik, file=paste0(outDir,"/",id,".RData"))
 
 ### SELECT SOLUTION WITH LARGEST LIKELIHOOD ###
+loglik <- loglik[!is.na(loglik$init), ]
 if (estimateScPrevalence){ ## sort but excluding solutions with too large % subclonal 
 	fracInd <- which(loglik[, "Frac_CNA_subclonal"] <= maxFracCNASubclone & 
 						 		   loglik[, "Frac_genome_subclonal"] <= maxFracGenomeSubclone)
