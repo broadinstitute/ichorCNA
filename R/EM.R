@@ -14,7 +14,7 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
 									estimateNormal = TRUE, estimatePloidy = TRUE, 
 									estimateVar = TRUE, estimatePrecision = TRUE,
                   estimateTransition = TRUE, estimateInitDist = TRUE, estimateSubclone = TRUE,
-									likModel = "t", likChangeConvergence = 1e-3) {
+									likChangeConvergence = 1e-3) {
   
   if (nrow(copy) != length(chr) || nrow(copy) != length(chrInd)) {
     stop("runEM: Length of inputs do not match for one of: copy, chr, chrInd")
@@ -29,7 +29,7 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
   S <- param$numberSamples
   K <- length(param$ct)
   Z <- sum(param$ct.sc) #number of subclonal states (# repeated copy number states)
-  KS <- K ^ S
+  KS <- nrow(param$jointStates)#K ^ S
   N <- nrow(copy)
   rho <- matrix(0, KS, N)
   lambdas <- array(0, dim = c(K, S, maxiter))  # State Variances
@@ -67,27 +67,28 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
   lambdas[, , i] <- param$lambda #matrix(param$lambda, nrow = K, ncol = S, byrow = TRUE)
   lambdasKS <- as.matrix(expand.grid(as.data.frame(lambdas[, , i]))) #as.matrix(expand.grid(rep(list(param$lambda), S)))
   #covars[[i]] <- param$covar
-  #if (likModel == "Gaussian"){
+  if (param$likModel == "Gaussian"){
     vars[, , i] <- param$var
     varsKS <- as.matrix(expand.grid(as.data.frame(vars[, , i])))
-  #}
+  }
   mus[, , i] <- as.matrix(get2and3ComponentMixture(param$jointCNstates, param$jointSCstatus, n[, i], sp[, i], phi[, i]))
   
   # Likelihood #
-  if (likModel == "t"){
+  if (param$likModel == "t"){
     for (ks in 1:KS) {
       probs <- tdistPDF(copy, mus[ks, , i], lambdasKS[ks, ], param$nu)
       py[ks, ] <- apply(probs, 1, prod) # multiply across samples for each data point to get joint likelihood.
     }
-  }else if (likModel == "Gaussian"){
-    message("Using ", likModel, " emission model.")
+  }else if (param$likModel == "Gaussian"){
+    message("Using ", param$likModel, " emission model.")
     #py <- t(sapply(1:KS, function(ks) {
     #  mvGaussDistPDF(copy, mus[ks, , i], diag(varsKS[ks, ])) # not true covariance matrix
     #}))
-    py <- t(sapply(1:KS, function(ks) {
-      probs = normalpdf(copy, mus[ks, , i], varsKS[ks, ])
-      apply(probs, 1, prod)
-    }))
+    # py <- t(sapply(1:KS, function(ks) {
+    #   probs <- normalpdf(copy, mus[ks, , i], varsKS[ks, ])
+    #   apply(probs, 1, prod)
+    # }))
+    py <- getNormLik(copy, mus[, , i], varsKS, param$sw)
   }
   
   loglik[i] <- -Inf
@@ -122,7 +123,7 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
     ################ M-step ####################
     if (verbose) { message("runEM iter", i-1 , ": Maximization") }
     ptm.em <- proc.time()
-    if (likModel == "Gaussian"){
+    if (param$likModel == "Gaussian"){
       output <- estimateGaussianParamsMap(copy[chrInd, ], n[, i - 1], sp[, i - 1], phi[, i - 1], 
                                           varsKS, piG[, i - 1], A, param,
                                           rho[, chrInd], Zcounts, estimateNormal = estimateNormal, 
@@ -172,26 +173,27 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
     # Recalculate the likelihood
     #varsKS <- as.matrix(expand.grid(as.data.frame(vars[, , i])))
     mus[, , i] <- as.matrix(get2and3ComponentMixture(param$jointCNstates, param$jointSCstatus, n[, i], sp[, i], phi[, i]))
-    if (likModel == "t"){
+    if (param$likModel == "t"){
       for (ks in 1:KS) {
         probs <- tdistPDF(copy, mus[ks, , i], lambdasKS[ks, ], param$nu)
         py[ks, ] <- apply(probs, 1, prod) # multiply across samples for each data point to get joint likelihood.
       }
-    }else if (likModel == "Gaussian"){
+    }else if (param$likModel == "Gaussian"){
       #py <- t(sapply(1:KS, function(ks) {
       #  mvGaussDistPDF(copy, mus[ks, , i], diag(varsKS[ks, ])) # not true covariance matrix
       #}))
-      py <- t(sapply(1:KS, function(ks) {
-        probs = normalpdf(copy, mus[ks, , i], varsKS[ks, ])
-        apply(probs, 1, prod)
-      }))
+      # py <- t(sapply(1:KS, function(ks) {
+      #   probs <- normalpdf(copy, mus[ks, , i], varsKS[ks, ])
+      #   apply(probs, 1, prod)
+      # }))
+      py <- getNormLik(copy, mus[, , i], varsKS, param$sw)
     }
     
     prior <- priorProbs(n[, i], sp[, i], phi[, i], lambdas[, , i], varsKS, piG[, i], A, param, 
                         estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
                         estimateVar = estimateVar, estimatePrecision = estimatePrecision, 
                         estimateTransition = estimateTransition, estimateInitDist = estimateInitDist, 
-                        estimateSubclone = estimateSubclone, likModel = likModel)
+                        estimateSubclone = estimateSubclone)
     
     
     # check converence 
@@ -203,7 +205,7 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
     }
     if ((abs(loglik[i] - loglik[i - 1]) / abs(loglik[i])) < likChangeConvergence){#} && loglik[i] > loglik[i - 1]) {
       message("runEM iter", i-1, " EM Converged")
-      converged = 1
+      converged = 0
     }
     if (loglik[i] < loglik[i - 1]){
       message("LIKELIHOOD DECREASED!!!")
@@ -350,12 +352,38 @@ tdistPDF <- function(x, mu, lambda, nu) {
 }
 
 normalpdf <- function(x, mu, var){
-  c <- log(1/(sqrt(var) * sqrt(2 * pi)))  #normalizing constant
-  l <- -((x - mu)^2)/(2 * var)  #likelihood
-  y <- c + l  #together 
+  # S <- ncol(x)
+  # if (!is.null(S)){
+  #   y <- NULL
+  #   for (s in 1:S){
+  #     c <- log(1/(sqrt(var[s]) * sqrt(2 * pi)))  #normalizing constant
+  #     l <- -((x[, s] - mu[s])^2)/(2 * var[s])  #likelihood
+  #     y <- cbind(y, c + l)
+  #   }
+  # }else{
+    c <- log(1/(sqrt(var) * sqrt(2 * pi)))  #normalizing constant
+    l <- -((x - mu)^2)/(2 * var)  #likelihood
+    y <- c + l
+  #}
   y[is.na(y)] <- 0
   y <- exp(y)
   return(y)
+}
+
+getNormLik <- function(copy, mus, varsKS, sw){
+  S <- param$numberSamples
+  K <- length(param$ct)
+  Z <- sum(param$ct.sc) #number of subclonal states (# repeated copy number states)
+  KS <- K ^ S
+  py <- t(sapply(1:KS, function(ks) {
+    y <- NULL
+    for (s in 1:S){
+      sl <- normalpdf(copy[, s], mus[ks, s], varsKS[ks, s]) ^ sw[s]
+      y <- cbind(y, sl)
+    }
+    probs <- apply(y, 1, prod)
+  }))
+  return(py)
 }
 
 mvGaussDistPDF <- function(x, mu, covar){
@@ -607,7 +635,7 @@ nUpdateEqn <- function(n, sp, phi, var, jointStates, jointCNstates, jointSCstatu
   KS <- nrow(mus)
   S <- length(n)
   cn <- 2
-    G <- jointStates
+  G <- jointStates
   K <- length(unique(G))
   
   #dQ_dn <- rep(0, KS)
@@ -616,19 +644,21 @@ nUpdateEqn <- function(n, sp, phi, var, jointStates, jointCNstates, jointSCstatu
   #    (cn - phi)/(n * cn + (1 - n) * phi)
   #  dQ_dn[k] <-  var[k]^-1 * (b[k] - a[k] * mus[k,1]) * dmu_dn 
   #}
-  ct <- jointCNstates[!jointSCstatus]
+  ind <- which(!jointSCstatus)
+  ct <- jointCNstates[ind]
   dmu_dn <- (cn - ct) / (n * cn + (1 - n) * ct) - (cn - phi) / (n * cn + (1 - n) * phi)
-  dQ_dn.noSC <- var^-1 * (b - a * mus) * dmu_dn
+  dQ_dn.noSC <- var[ind]^-1 * (b[ind] - a[ind] * mus[ind]) * dmu_dn
   
-  ct.s <- jointCNstates[jointSCstatus]
+  ind <- which(jointSCstatus)
+  ct.s <- jointCNstates[ind]
   if (length(ct.s) > 0){
     dmu_dn.s <- (cn - sp * cn - (1 - sp) * ct.s) / (n * cn + (1 - n) * sp * cn + (1 - n) * (1 - sp) * ct.s) - 
       (cn - phi)/(n * cn + (1 - n) * phi)
-    dQ_dn.SC <- var^-1 * (b - a * mus) * dmu_dn.s
+    dQ_dn.SC <- var[ind]^-1 * (b[ind] - a[ind] * mus[ind]) * dmu_dn.s
   }else{
     dQ_dn.SC <- 0
   }
-  dQ_dn <- sum(dQ_dn.noSC + dQ_dn.SC)
+  dQ_dn <- sum(c(dQ_dn.noSC, dQ_dn.SC))
   dbeta_dn <- (alphaN - 1) / n - (betaN - 1) / (1 - n)
   f <- dQ_dn + dbeta_dn
   return(f)
@@ -785,7 +815,7 @@ priorProbs <- function(n, sp, phi, lambda, var, piG, A, params,
                        estimateNormal = TRUE, estimatePloidy = TRUE,
                        estimateVar = TRUE, estimatePrecision = TRUE, 
                        estimateTransition = TRUE, estimateInitDist = TRUE, 
-                       estimateSubclone = TRUE, likModel = 't'){
+                       estimateSubclone = TRUE){
   S <- params$numberSamples
   K <- length(params$ct)
   KS <- K ^ S
@@ -811,7 +841,7 @@ priorProbs <- function(n, sp, phi, lambda, var, piG, A, params,
   }
   priorLambda <- 0
   priorVar <- 0
-  if (param$likModel == "Gaussian"){
+  if (params$likModel == "Gaussian"){
     if (estimateVar){
       for (s in 1:S){
         priorVar <- priorVar + 
