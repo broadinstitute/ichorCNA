@@ -339,21 +339,21 @@ correctIntegerCN <- function(cn, segs, callColName = "event",
 	}
 
 	## assign copy number to use - Corrected_Copy_Number
-	# same ichorCNA calls for autosomes - no change in copy number
+	# 1) ame ichorCNA calls for autosomes - no change in copy number
 	segs$Corrected_Copy_Number <- as.integer(segs$copy.number)
 	segs$Corrected_Call <- segs[[callColName]]
 
 	ind.change <- c()
 	if (purity >= minPurityToCorrect){
-		# ichorCNA calls adjusted for >= copies - HLAMP
+		# 2) ichorCNA calls adjusted for >= copies - HLAMP
 		# perform on all chromosomes
 		ind.cn <- which(segs$copy.number >= maxCNtoCorrect.autosomes | 
-						segs$logR_Copy_Number >= maxCNtoCorrect.autosomes * 1.2)
+						(segs$logR_Copy_Number >= maxCNtoCorrect.autosomes * 1.2 & !is.infinite(segs$logR_Copy_Number)))
 		segs$Corrected_Copy_Number[ind.cn] <- as.integer(round(segs$logR_Copy_Number[ind.cn]))
 		segs$Corrected_Call[ind.cn] <- names[segs$Corrected_Copy_Number[ind.cn] + 1]
 		ind.change <- c(ind.change, ind.cn)
 		
-		# ichorCNA calls adjust for HOMD
+		# 3) ichorCNA calls adjust for HOMD
 		if (correctHOMD){
 			ind.cn <- which(segs$chr %in% chrs & 
 				(segs$copy.number == 0 | segs$logR_Copy_Number == 1/2^6))
@@ -361,7 +361,7 @@ correctIntegerCN <- function(cn, segs, callColName = "event",
 			segs$Corrected_Call[ind.cn] <- names[segs$Corrected_Copy_Number[ind.cn] + 1]
 			ind.change <- c(ind.change, ind.cn)
 		}
-		# Re-adjust chrX copy number for males (females already handled above)
+		# 4) Re-adjust chrX copy number for males (females already handled above)
 		if (gender == "male" & length(chrXStr) > 0){
 			ind.cn <- which(segs$chr == chrXStr & 
 				(segs$copy.number >= maxCNtoCorrect.X | segs$logR_Copy_Number >= maxCNtoCorrect.X * 1.2))
@@ -381,21 +381,26 @@ correctIntegerCN <- function(cn, segs, callColName = "event",
 		ind.cnChrX <- which(cn$chr == chrXStr)
 		cn$logR_Copy_Number[ind.cnChrX] <- logRbasedCN(cn[["logR"]][ind.cnChrX], purity, ploidy, cellPrev.cn[ind.cnChrX], cn=1)
 	}
-
-	# 2) find which segs changed/adjusted
-	ind.change <- unique(ind.change)
-	# 3) correct bins overlapping adjusted segs
-	cn.gr <- as(cn, "GRanges")
-	segs.gr <- as(segs, "GRanges")
-	hits <- findOverlaps(query = cn.gr, subject = segs.gr[ind.change])
-	cn$Corrected_Copy_Number[queryHits(hits)] <- segs$Corrected_Copy_Number[ind.change][subjectHits(hits)]
-	cn$Corrected_Call[queryHits(hits)] <- segs$Corrected_Call[ind.change][subjectHits(hits)]
-	# 4) correct bins that are missed as high level amplifications
-	ind.cn <- which(cn$copy.number >= maxCNtoCorrect.autosomes | 
- 					cn$logR_Copy_Number >= maxCNtoCorrect.autosomes * 1.2)
- 	ind.cn <- setdiff(ind.cn, queryHits(hits))
- 	cn$Corrected_Copy_Number[ind.cn] <- as.integer(round(cn$logR_Copy_Number[ind.cn]))
- 	cn$Corrected_Call[ind.cn] <- names[cn$Corrected_Copy_Number[ind.cn] + 1]
+	if (purity >= minPurityToCorrect){
+		# 2) correct bins overlapping adjusted segs
+		ind.change <- unique(ind.change)
+		ind.overlapSegs <- c()
+		if (length(ind.change) > 0){		
+			cn.gr <- as(cn, "GRanges")
+			segs.gr <- as(segs, "GRanges")
+			hits <- findOverlaps(query = cn.gr, subject = segs.gr[ind.change])
+			cn$Corrected_Copy_Number[queryHits(hits)] <- segs$Corrected_Copy_Number[ind.change][subjectHits(hits)]
+			cn$Corrected_Call[queryHits(hits)] <- segs$Corrected_Call[ind.change][subjectHits(hits)]
+			ind.overlapSegs <- queryHits(hits)
+		}
+		# 3) correct bins that are missed as high level amplifications
+		ind.hlamp <- which(cn$copy.number >= maxCNtoCorrect.autosomes | 
+	 					(cn$logR_Copy_Number >= maxCNtoCorrect.autosomes * 1.2 & !is.infinite(cn$logR_Copy_Number)))
+		ind.cn <- unique(ind.hlamp, ind.overlapSegs)
+	 	cn$Corrected_Copy_Number[ind.cn] <- as.integer(round(cn$logR_Copy_Number[ind.cn]))
+	 	cn$Corrected_Call[ind.cn] <- names[cn$Corrected_Copy_Number[ind.cn] + 1]
+	 }
+	 
 	return(list(cn = cn, segs = segs))
 }
 
