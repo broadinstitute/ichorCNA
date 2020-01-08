@@ -1,12 +1,14 @@
-# file:   utils.R
+# file:   plotting.R
 # author: Gavin Ha, Ph.D.
-#         Justin Rhoades
-#               Dana-Farber Cancer Institute
-#               Broad Institute
-# contact: <gavinha@broadinstitute.org>
-# ULP-WGS website: http://www.broadinstitute.org/~gavinha/ULP-WGS/
-# HMMcopy website: http://compbio.bccrc.ca/software/hmmcopy/ and https://www.bioconductor.org/packages/release/bioc/html/HMMcopy.html
-# date:   Oct 26, 2016
+#         Fred Hutchinson Cancer Research Center
+# contact: <gha@fredhutch.org>
+# website: https://GavinHaLab.org
+#
+# author: Justin Rhoades, Broad Institute
+#
+# ichorCNA website: https://github.com/GavinHaLab/ichorCNA
+# date:   January 6, 2020
+#
 # description: Hidden Markov model (HMM) to analyze Ultra-low pass whole genome sequencing (ULP-WGS) data.
 # This script is the main script to run the HMM.
 
@@ -86,36 +88,41 @@ setGenomeStyle <- function(x, genomeStyle = "NCBI", species = "Homo_sapiens"){
 }
 
 wigToGRanges <- function(wigfile, verbose = TRUE){
-  if (verbose) { message(paste("Slurping:", wigfile)) }
-  input <- readLines(wigfile, warn = FALSE)
-  breaks <- c(grep("fixedStep", input), length(input) + 1)
-  temp <- NULL
-  span <- NULL
-  for (i in 1:(length(breaks) - 1)) {
-    data_range <- (breaks[i] + 1):(breaks[i + 1] - 1)
-    track_info <- input[breaks[i]]
-    if (verbose) { message(paste("Parsing:", track_info)) }
-    tokens <- strsplit(
-      sub("fixedStep chrom=(\\S+) start=(\\d+) step=(\\d+) span=(\\d+)",
-          "\\1 \\2 \\3 \\4", track_info, perl = TRUE), " ")[[1]]
-    span <- as.integer(tokens[4])
-    chr <- rep.int(tokens[1], length(data_range))
-    pos <- seq(from = as.integer(tokens[2]), by = as.integer(tokens[3]),
-               length.out = length(data_range))
-    val <- as.numeric(input[data_range])
-    temp <- c(temp, list(data.frame(chr, pos, val)))
-  }
-  if (verbose) { message("Sorting by decreasing chromosome size") }
-  lengths <- as.integer(lapply(temp, nrow))
-  temp <- temp[order(lengths, decreasing = TRUE)]
-  temp = do.call("rbind", temp)
-  output <- GenomicRanges::GRanges(ranges = IRanges(start = temp$pos, width = span),
-                       seqnames = temp$chr, value = temp$val)
+  output <- tryCatch({
+    input <- readLines(wigfile, warn = FALSE)
+    breaks <- c(grep("fixedStep", input), length(input) + 1)
+    temp <- NULL
+    span <- NULL
+    for (i in 1:(length(breaks) - 1)) {
+      data_range <- (breaks[i] + 1):(breaks[i + 1] - 1)
+      track_info <- input[breaks[i]]
+      if (verbose) { message(paste("Parsing:", track_info)) }
+      tokens <- strsplit(
+        sub("fixedStep chrom=(\\S+) start=(\\d+) step=(\\d+) span=(\\d+)",
+            "\\1 \\2 \\3 \\4", track_info, perl = TRUE), " ")[[1]]
+      span <- as.integer(tokens[4])
+      chr <- rep.int(tokens[1], length(data_range))
+      pos <- seq(from = as.integer(tokens[2]), by = as.integer(tokens[3]),
+                 length.out = length(data_range))
+      val <- as.numeric(input[data_range])
+      temp <- c(temp, list(data.frame(chr, pos, val)))
+    }
+    if (verbose) { message("Sorting by decreasing chromosome size") }
+    lengths <- as.integer(lapply(temp, nrow))
+    temp <- temp[order(lengths, decreasing = TRUE)]
+    temp = do.call("rbind", temp)
+    output <- GenomicRanges::GRanges(ranges = IRanges(start = temp$pos, width = span),
+                         seqnames = temp$chr, value = temp$val)
+    return(output)
+  }, error = function(e){
+    message("wigToGRanges: WIG file '", wigfile, "' not found.")
+    return(NULL)
+  })
   return(output)
 }
 
 
-loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, map = NULL, centromere = NULL, flankLength = 100000, targetedSequences = NULL, genomeStyle = "NCBI", applyCorrection = TRUE, mapScoreThres = 0.9, chrNormalize = c(1:22, "X", "Y"), fracReadsInChrYForMale = 0.002, chrXMedianForMale = -0.5, useChrY = TRUE){
+loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, map = NULL, repTime = NULL, centromere = NULL, flankLength = 100000, targetedSequences = NULL, genomeStyle = "NCBI", applyCorrection = TRUE, mapScoreThres = 0.9, chrNormalize = c(1:22, "X", "Y"), fracReadsInChrYForMale = 0.002, chrXMedianForMale = -0.5, useChrY = TRUE){
 	require(HMMcopy)
 	require(GenomeInfoDb)
 	seqlevelsStyle(counts) <- genomeStyle
@@ -124,11 +131,29 @@ loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, m
 	
 	if (!is.null(gc)){ 
 		seqlevelsStyle(gc) <- genomeStyle
-		counts$gc <- keepChr(gc, chrs)$value
+		tryCatch({
+		  counts$gc <- keepChr(gc, chrs)$value
+		}, error = function(e){
+		  stop("loadReadCountsFromWig: Number of bins in gc different than input wig.")
+		})
 	}
 	if (!is.null(map)){ 
 		seqlevelsStyle(map) <- genomeStyle
-		counts$map <- keepChr(map, chrs)$value
+		tryCatch({
+		  counts$map <- keepChr(map, chrs)$value
+		}, error = function(e){
+		  stop("loadReadCountsFromWig: Number of bins in map different than input wig.")
+		})
+	}
+	if (!is.null(repTime)){
+	  seqlevelsStyle(repTime) <- genomeStyle
+	  tryCatch({
+	    counts$repTime <- keepChr(repTime, chrs)$value
+	    counts$repTime <- 1 / (1 + exp(-1 * counts$repTime)) # logistic transformation
+	    counts$repTime <- 1 - counts$repTime # use the inverse
+	  }, error = function(e){
+	    stop("loadReadCountsFromWig: Number of bins in repTime different than input wig.")
+	  })
 	}
 	colnames(values(counts))[1] <- c("reads")
 	
@@ -145,20 +170,27 @@ loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, m
 		counts <- counts[countsExons$ix,]
 	}
 	gender <- NULL
+	gc.fit <- NULL
+	map.fit <- NULL
+	rep.fit <- NULL
 	if (applyCorrection){
 		## correct read counts ##
-		counts <- correctReadCounts(counts, chrNormalize = chrNormalize)
+		cor.counts <- correctReadCounts(counts, mappability = 0, chrNormalize = chrNormalize)
 		if (!is.null(map)) {
 		  ## filter bins by mappability
-		  counts <- filterByMappabilityScore(counts, map=map, mapScoreThres = mapScoreThres)
+		  cor.counts$cor <- filterByMappabilityScore(cor.counts$cor, map=map, mapScoreThres = mapScoreThres)
 		}
+		counts <- cor.counts$cor
+		gc.fit <- cor.counts$gc.fit
+		map.fit <- cor.counts$map.fit
+		rep.fit <- cor.counts$rep.fit
 		## get gender ##
 		gender <- getGender(counts.raw, counts, gc, map, fracReadsInChrYForMale = fracReadsInChrYForMale, 
 							chrXMedianForMale = chrXMedianForMale, useChrY = useChrY,
 							centromere=centromere, flankLength=flankLength, targetedSequences = targetedSequences,
 							genomeStyle = genomeStyle)
     }
-  return(list(counts = counts, gender = gender))
+  return(list(counts = counts, gender = gender, gc.fit = gc.fit, map.fit = map.fit, rep.fit = rep.fit))
 }
 
 filterByMappabilityScore <- function(counts, map, mapScoreThres = 0.9){
@@ -290,33 +322,51 @@ correctReadCounts <- function(x, chrNormalize = c(1:22), mappability = 0.9, samp
   if (verbose) { message("Correcting for GC bias...") }
   set <- which(x$ideal & chrInd)
   select <- sample(set, min(length(set), samplesize))
-  rough = loess(x$reads[select] ~ x$gc[select], span = 0.03)
+  rough <- loess(x$reads[select] ~ x$gc[select], span = 0.03)
   i <- seq(0, 1, by = 0.001)
-  final = loess(predict(rough, i) ~ i, span = 0.3)
-  x$cor.gc <- x$reads / predict(final, x$gc)
+  final.gc <- loess(predict(rough, i) ~ i, span = 0.3)
+  x$cor.gc <- x$reads / predict(final.gc, x$gc)
 
+  final.map <- NULL
   if (length(x$map) != 0) {
     if (verbose) { message("Correcting for mappability bias...") }
     coutlier <- 0.01
     range <- quantile(x$cor.gc[which(x$valid & chrInd)], prob = c(0, 1 - coutlier), na.rm = TRUE)
     set <- which(x$cor.gc < range[2] & chrInd)
     select <- sample(set, min(length(set), samplesize))
-    final = approxfun(lowess(x$map[select], x$cor.gc[select]))
-    x$cor.map <- x$cor.gc / final(x$map)
+    final.map <- approxfun(lowess(x$map[select], x$cor.gc[select]))
+    x$cor.map <- x$cor.gc / final.map(x$map)
   } else {
     x$cor.map <- x$cor.gc
   }
-  x$copy <- x$cor.map
+  
+  final.rep <- NULL
+  if (length(x$repTime) != 0){
+    if (verbose) { message("Correcting for replication timing bias...") }
+    coutlier <- 0.01
+    range <- quantile(x$cor.map[which(x$valid & chrInd)], prob = c(0, 1 - coutlier), na.rm = TRUE)
+    domain.rep <- quantile(x$repTime[x$valid & chrInd], prob = c(doutlier, 1 - doutlier), na.rm = TRUE)
+    set <- which(x$cor.map < range[2] & chrInd)
+    select <- sample(set, min(length(set), samplesize))
+    rough <- loess(x$cor.map[select] ~ x$repTime[select], span = 0.03)
+    i <- seq(domain.rep[1], domain.rep[2], by = 0.001)
+    final.rep <- loess(predict(rough, i) ~ i, span = 0.3)
+    x$cor.rep <- x$cor.map / predict(final.rep, x$repTime)
+  }else{
+    x$cor.rep <- x$cor.map
+  }
+  x$copy <- x$cor.rep
   x$copy[x$copy <= 0] = NA
   x$copy <- log(x$copy, 2)
-  return(x)
+  return(list(cor=x, gc.fit = final.gc, map.fit = final.map, rep.fit = final.rep))
 }
 
 ## Recompute integer CN for high-level amplifications ##
 ## compute logR-corrected copy number ##
 correctIntegerCN <- function(cn, segs, callColName = "event", 
 		purity, ploidy, cellPrev, maxCNtoCorrect.autosomes = NULL, 
-		maxCNtoCorrect.X = NULL, correctHOMD = TRUE, minPurityToCorrect = 0.2, gender = "male", chrs = c(1:22, "X")){
+		maxCNtoCorrect.X = NULL, correctHOMD = TRUE, correctWholeChrXForMales = FALSE,
+		minPurityToCorrect = 0.2, gender = "male", chrs = c(1:22, "X")){
 	names <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP", rep("HLAMP", 1000))
 
 	## set up chromosome style
@@ -363,8 +413,12 @@ correctIntegerCN <- function(cn, segs, callColName = "event",
 		}
 		# 4) Re-adjust chrX copy number for males (females already handled above)
 		if (gender == "male" & length(chrXStr) > 0){
+		  if (!correctWholeChrXForMales){ # correct all of chrX for males
+		    ind.cn <- which(segs$chr == chrXStr)
+		  }else{ # only highest chrX CN
 			ind.cn <- which(segs$chr == chrXStr & 
 				(segs$copy.number >= maxCNtoCorrect.X | segs$logR_Copy_Number >= maxCNtoCorrect.X * 1.2))
+		  }
 			segs$Corrected_Copy_Number[ind.cn] <- as.integer(round(segs$logR_Copy_Number[ind.cn]))
 			segs$Corrected_Call[ind.cn] <- names[segs$Corrected_Copy_Number[ind.cn] + 2]
 			ind.change <- c(ind.change, ind.cn)
@@ -399,6 +453,13 @@ correctIntegerCN <- function(cn, segs, callColName = "event",
 		ind.cn <- unique(ind.hlamp, ind.overlapSegs)
 	 	cn$Corrected_Copy_Number[ind.cn] <- as.integer(round(cn$logR_Copy_Number[ind.cn]))
 	 	cn$Corrected_Call[ind.cn] <- names[cn$Corrected_Copy_Number[ind.cn] + 1]
+
+	 	#4) Correct bins that are clearly homozygous deletions
+		# hetd.median <- median(cn[cn$copy.number == 1, "logR"], na.rm = TRUE)
+		# hetd.sd <- sd(cn[cn$copy.number == 1, "logR"], na.rm = TRUE)
+		# ind.homd <- which(cn$logR_Copy_Number <= 1/2^6 & cn$logR <= hetd.median - 2 * hetd.sd)
+		# cn$Corrected_Copy_Number[ind.homd] <- 0
+		# cn$Corrected_Call[ind.homd] <- "HOMD"
 	 }
 	 
 	return(list(cn = cn, segs = segs))

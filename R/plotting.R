@@ -2,18 +2,20 @@
 # author: Gavin Ha, Ph.D.
 #         Fred Hutchinson Cancer Research Center
 # contact: <gha@fredhutch.org>
-# 
+# # website: https://GavinHaLab.org
+#
 # author: Justin Rhoades, Broad Institute
 #
 # ichorCNA website: https://github.com/broadinstitute/ichorCNA
-# date:   August 12, 2019
+# date:   January 6, 2020
 # description: Hidden Markov model (HMM) to analyze Ultra-low pass whole genome sequencing (ULP-WGS) data.
 # This file contains R functions for plotting.
 
 ## plot solutions for all samples
-plotSolutions <- function(hmmResults.cor, tumour_copy, logR.column = "logR", call.column = "event", 
-					      chrs, outDir, plotSegs = TRUE,
-                          numSamples=1, plotFileType="pdf", plotYLim=c(-2,2), seqinfo = NULL,
+plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir, counts,
+                          logR.column = "logR", call.column = "event", likModel = "t",
+                          plotSegs = TRUE, numSamples=1, plotFileType="pdf", 
+                          plotYLim=c(-2,2), seqinfo = NULL,
                           estimateScPrevalence=FALSE, maxCN){
   ## for each sample ##
   for (s in 1:numSamples){
@@ -49,8 +51,8 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, logR.column = "logR", cal
       dev.off()
     }
 
-    ### PLOT THE CORRECTION COMPARISONS ###
-    outPlotFile <- paste0(outDir,"/",id,"/",id,"_correct")
+    ### PLOT THE GENOME-WIDE CORRECTION COMPARISONS ###
+    outPlotFile <- paste0(outDir,"/",id,"/",id,"_genomeWideCorrection")
     if (plotFileType == "png"){ 
       outPlotFile <- paste0(outPlotFile, ".png")
       png(outPlotFile,width=10,height=12,units="in",res=300)
@@ -58,8 +60,41 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, logR.column = "logR", cal
       outPlotFile <- paste0(outPlotFile, ".pdf")
       pdf(outPlotFile,width=10,height=12)
     }
-    plotCorrectionGenomeWide(tumour_copy[[s]], seqinfo = seqinfo, pch = ".")
+    plotCorrectionGenomeWide(tumour_copy[[s]], seqinfo = seqinfo, pch = ".", xlab = "Chromosomes")
     dev.off()
+    
+    ### PLOT THE CORRECTION COMPARISONS BY CHR ###
+    for (i in chrs){
+      outPlotFile <- paste0(outDir,"/",id,"/",id,"_correction_chr", i)
+      if (plotFileType == "png"){ 
+        outPlotFile <- paste0(outPlotFile, ".png")
+        png(outPlotFile,width=10,height=12,units="in",res=300)
+      }else{
+        outPlotFile <- paste0(outPlotFile, ".pdf")
+        pdf(outPlotFile,width=10,height=12)
+      }
+      plotCorrectionGenomeWide(tumour_copy[[s]], seqinfo = seqinfo, chr = i, 
+                               cex = 3, pch = ".", xlab = paste0("Chr", i))
+      dev.off()
+    }
+    
+    ### PLOT FIT COMPARISON ###
+    if (length(counts[[s]]$counts) > 1e4){
+      for (i in chrs){
+        outPlotFile <- paste0(outDir, "/", id, "/", id, "_fit_chr", i)
+        if (plotFileType == "png"){ 
+          outPlotFile <- paste0(outPlotFile, ".png")
+          png(outPlotFile,width=10,height=12,units="in",res=300)
+        }else{
+          outPlotFile <- paste0(outPlotFile, ".pdf")
+          pdf(outPlotFile,width=10,height=12)
+        }
+        plotFitCompareByChr(counts[[s]], chr = i, covar = "repTime", covarName = "Replication Timing",
+                                        before = "cor.map", beforeName = "Mappability-Corrected",
+                                        after = "cor.rep", afterName = "Replication-Timing-Corrected")
+        dev.off()
+      }
+    }
 
     ### PLOT THE BIAS ###
     outPlotFile <- paste0(outDir,"/",id,"/",id,"_bias")
@@ -70,7 +105,20 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, logR.column = "logR", cal
       outPlotFile <- paste0(outPlotFile, ".pdf")
       pdf(outPlotFile,width=7,height=7)
     }
-    try(plotBias(tumour_copy[[s]], pch = 20, cex = 0.5), silent=TRUE)
+    par(mfrow = c(3, 2))
+    try(plotCovarBias(counts[[s]], covar = "gc", before = "reads", 
+                    after = "cor.gc", fit = "gc.fit", xlab = "GC Content",
+                    pch = 20, cex = 0.5, mfrow = NULL),
+        silent=TRUE)
+    try(plotCovarBias(counts[[s]], covar = "map", before = "cor.gc", 
+                      after = "cor.map", fit = NULL, xlab = "Mappability Score",
+                      pch = 20, cex = 0.5, mfrow = NULL),
+        silent=TRUE)
+    try(plotCovarBias(counts[[s]], covar = "repTime", before = "cor.map", 
+                      after = "cor.rep", fit = "rep.fit", xlab = "Replication Timing", 
+                      pch = 20, cex = 0.5, mfrow = NULL),
+        silent=TRUE)
+    
     dev.off()
 
     ### PLOT TPDF ##
@@ -78,10 +126,12 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, logR.column = "logR", cal
     pdf(outPlotFile)
     plotParam(mus = unique(hmmResults.cor$results$mus[, s, iter]), 
               lambdas = hmmResults.cor$results$lambdas[, s, iter], 
+              vars = hmmResults.cor$results$vars[, s],
+              jointStates = hmmResults.cor$results$param$jointStates[, s],
+              likModel = likModel,
               subclone = hmmResults.cor$results$param$ct.sc.status,
               nu = hmmResults.cor$results$param$nu, copy.states = 1:maxCN)
     dev.off()
-
   }
 }
 
@@ -276,13 +326,21 @@ plotCNlogRByChr <- function(dataIn, segs, param = NULL, logR.column = "logR", ca
 }
 
 
-plotCorrectionGenomeWide <- function(correctOutput, seqinfo = NULL, ...) {
+plotCorrectionGenomeWide <- function(correctOutput, seqinfo = NULL, chr = NULL, ...) {
   
-  midpt <- (start(correctOutput) + end(correctOutput))/2
-  coord <- getGenomeWidePositions(seqnames(correctOutput),midpt, seqinfo)
+  if (is.null(chr)){
+    midpt <- (start(correctOutput) + end(correctOutput))/2
+    coord <- getGenomeWidePositions(seqnames(correctOutput),midpt, seqinfo)
+  }else {
+    correctOutput <- correctOutput[seqnames(correctOutput) == chr]
+    midpt <- (start(correctOutput) + end(correctOutput))/2
+    coord <- getGenomeWidePositions(seqnames(correctOutput),midpt, seqinfo)
+  }
   
-  
-  par(mfrow = c(3, 1))
+  mapCor <- !is.null(correctOutput$cor.map)
+  repTimeCor <- !is.null(correctOutput$cor.rep)
+  rows <- 2 + sum(c(mapCor, repTimeCor)) # must include uncorrected and GC panels
+  par(mfrow = c(rows, 1))
   #correctOutput <- correctOutput[paste(chr)]
   pos <- coord$posns
   from <- min(coord$chrBkpt)
@@ -296,21 +354,42 @@ plotCorrectionGenomeWide <- function(correctOutput, seqinfo = NULL, ...) {
                  copy >= bot & copy <= top)
   
   y <- copy[set]
-  m <- signif(mad(y, na.rm = TRUE), digits = 3)
+  # plot Uncorrected read ratios (tum:norm)
+  m <- signif(mad(diff(y), na.rm = TRUE), digits = 3)
   r <- c(min(y, na.rm = TRUE), max(y, na.rm = TRUE))
-  plot(pos[set], y, ylab = "Estimated Copy", xaxt="n",
+  plot(pos[set], y, ylab = "Estimated Copy Ratio", xaxt="n",
        main = paste("Uncorrected Readcount, MAD = ", m), ylim = r, ...)
-  plotChrLines(as.vector(unique(seqnames(correctOutput))),coord$chrBkpt,yrange=r+c(-0.5,0.5))
-  m <- signif(mad(correctOutput$cor.gc[set], na.rm = TRUE), digits = 3)
+  if (is.null(chr)){
+    plotChrLines(as.vector(unique(seqnames(correctOutput))),coord$chrBkpt,yrange=r+c(-0.5,0.5))
+  }
+  # plot GC corrected read counts
+  m <- signif(mad(diff(correctOutput$cor.gc[set]), na.rm = TRUE), digits = 3)
   plot(pos[set], correctOutput$cor.gc[set], xaxt="n",
-       ylab = "Estimated Copy",
-       main = paste("CG-corrected Readcount, MAD = ", m), ylim = r, ...)
-  plotChrLines(as.vector(unique(seqnames(correctOutput))),coord$chrBkpt,yrange=r+c(-0.5,0.5))
-  m <- signif(mad(correctOutput$cor.map[set], na.rm = TRUE), digits = 3)
-  plot(pos[set], correctOutput$cor.map[set], xaxt="n", ylab = "Estimated Copy",
-       main = paste("Mappability and GC-corrected Readcount, MAD = ", m),
-       ylim = r, ...)
-  plotChrLines(as.vector(unique(seqnames(correctOutput))),coord$chrBkpt,yrange=r+c(-0.5,0.5))
+       ylab = "Estimated Copy Ratio",
+       main = paste("GC-corrected Readcount, MAD = ", m), ylim = r, ...)
+  if (is.null(chr)){
+    plotChrLines(as.vector(unique(seqnames(correctOutput))),coord$chrBkpt,yrange=r+c(-0.5,0.5))
+  }
+  # plot GC corrected + mappability corrected read counts
+  if (mapCor){
+    m <- signif(mad(diff(correctOutput$cor.map[set]), na.rm = TRUE), digits = 3)
+    plot(pos[set], correctOutput$cor.map[set], xaxt="n", ylab = "Estimated Copy Ratio",
+         main = paste("GC-corrected, mappability-corrected Readcount, MAD = ", m),
+         ylim = r, ...)
+    if (is.null(chr)){
+      plotChrLines(as.vector(unique(seqnames(correctOutput))),coord$chrBkpt,yrange=r+c(-0.5,0.5))
+    }
+  }
+  # plot GC corrected + mappability corrected + replication-timing corrected read counts
+  if (repTimeCor){
+    m <- signif(mad(diff(correctOutput$cor.rep[set]), na.rm = TRUE), digits = 3)
+    plot(pos[set], correctOutput$cor.rep[set], xaxt="n", ylab = "Estimated Copy Ratio",
+         main = paste("GC-corrected, mappability-corrected, replication-timing-corrected Readcount, MAD = ", m),
+         ylim = r, ...)
+    if (is.null(chr)){
+      plotChrLines(as.vector(unique(seqnames(correctOutput))),coord$chrBkpt,yrange=r+c(-0.5,0.5))
+    }
+  }
 }
 
 ##################################################
@@ -398,8 +477,8 @@ getGenomeWidePositions <- function(chrs, posns, seqinfo = NULL) {
 #   }
 # }
 
-####  TODO: SUBCLONAL STATES #####
-plotParam <- function(mus, lambdas, nu, subclone = NULL, copy.states = 0:6, ...) {
+plotParam <- function(mus, lambdas, nu, vars = NULL, likModel = "t", 
+                      jointStates = NULL, subclone = NULL, copy.states = 0:6, ...) {
   #cols <- stateCols()
   cols <- c("#00FF00","#006400","#0000FF","#8B0000",rep("#FF0000", 10))
   cols <- cols[copy.states + 1]
@@ -412,20 +491,137 @@ plotParam <- function(mus, lambdas, nu, subclone = NULL, copy.states = 0:6, ...)
   right <- max(mus) + domain
   x = seq(left * 10, right * 10, by = 0.01);
   height = 0
-  
-  for(state in 1:length(mus)) {
-    #y = tdistPDF(x, param$mu[state,1], param$lambda[state,1], param$param$nu);
-    z = tdistPDF(x, mus[state], lambdas[state], nu);
-    height <- max(height, z)
+  K <- length(mus)
+  z <- vector('list', K)
+  for(state in 1:K) {
+    if (likModel == "t"){
+      z[[state]] <- tdistPDF(x, mus[state], lambdas[state], nu);
+      ylab <- "Student-t Density"
+    }else if (grepl("gauss", likModel, ignore.case = TRUE)){
+      if (is.null(var) || is.null(jointStates)){
+        stop("plotParam: likModel is Gaussian but var and/or jointStates is not provided.")
+      }
+      varsToUse <- max(vars[jointStates == state])
+      z[[state]] <- normalpdf(x, mus[state], varsToUse)
+      ylab <- "Gaussian Density"
+    }
   }
+  height <- max(unlist(z))
   
   plot(c(left, right), c(0, height), type = "n", xlab = "Normalized Log2 Ratios",
-       ylab = "Student-t Density", ...);
+       ylab = ylab, ...);
   
-  for(state in 1:length(mus)) {
-    #y = tdistPDF(x, param$mu[state,1], param$lambda[state,1], param$param$nu);
-    z = tdistPDF(x, mus[state], lambdas[state], nu);
-    #lines(x, y, col = cols[state], lwd = 2, lty = 3);
-    lines(x, z, col = cols[state], lwd = 3);
+  z <- vector('list', K)
+  for(state in 1:K) {
+    if (likModel == "t"){
+      z[[state]] <- tdistPDF(x, mus[state], lambdas[state], nu);
+    }else if (grepl("gauss", likModel, ignore.case = TRUE)){
+      varsToUse <- mean(vars[jointStates == state])
+      z[[state]] <- normalpdf(x, mus[state], varsToUse)
+    }
   }
+  
+  for (state in 1:K){
+    if (subclone[state]){ # subclonal
+      lines(x, z[[state]], col = cols[state], lwd = 3, lty = 2)
+    }else{ #not subclonal
+      lines(x, z[[state]], col = cols[state], lwd = 3)
+    }
+  }
+  
+}
+
+plotCovarBias <- function(correctOutput, covar = "gc", 
+                          before = "reads", after = "cor.gc", fit = "gc.fit", 
+                          points = 10000, xlab = "GC content", 
+                          mfrow = c(1,2), ...){
+  if (!is.null(mfrow)){
+    par(mfrow = mfrow)
+  }
+  counts <- as.data.frame(correctOutput$counts)
+  
+  # select points to show (before)
+  set <- which(counts$ideal)
+  select.1 <- sample(set, min(length(set), points))
+  
+  # plot before correction
+  plot(counts[[covar]][select.1], counts[[before]][select.1], 
+       col = densCols(counts[[covar]][select.1], counts[[before]][select.1]), 
+       ylab = "Uncorrected", xlab = xlab, 
+       ...)
+  # plot curve fit line
+  if (!is.null(fit)){
+    domain <- c(min(counts$repTime, na.rm = TRUE), max(counts$repTime, na.rm = TRUE))
+    fit.covar <- correctOutput[[fit]]
+    i <- seq(domain[1], domain[2], by = 0.001)
+    y <- predict(fit.covar, i)
+    lines(i, y, type="l", lwd=1, col="red")
+  }
+  
+  # select points to show (after)
+  coutlier = 0.001
+  range <- quantile(counts[[after]][counts$ideal], 
+                    prob = c(0, 1 - coutlier), na.rm = TRUE)
+  valid <- which(counts[[after]] >= range[1] & counts[[after]] <= 
+                   range[2])
+  select.2 <- intersect(valid, select.1)
+  # plot after correction
+  plot(counts[[covar]][select.2], counts[[after]][select.2], 
+       col = densCols(counts[[covar]][select.2], counts[[after]][select.2]), 
+       ylab = "Corrected", xlab = xlab, 
+       ...)
+}
+
+######### INCOMPLETE ############
+## y is the character string for the column to fit the data
+## x is the GRanges object
+data.fit <- function(x, y){
+  ind <- !is.na(values(counts.chr)[[before]])
+  x <- x[ind]
+  midpt <- start(ranges(x)) + (end(ranges(x)) - start(ranges(x)))
+  fit <- loess(values(x)[[y]] ~ midpt, span = 0.03)
+  fit.predict <- loess(predict(fit, midpt) ~ midpt, span = 0.3)
+  y.hat <- predict(fit, midpt)
+  return(list(fit = fit, y.hat = y.hat, midpt = midpt))
+}
+
+plotFitCompareByChr <- function(x, chr, covar = "repTime", covarName = "Replication Timing",
+                                before = "cor.map", beforeName = "Mappability-Corrected",
+                                after = "cor.rep", afterName = "Replication-Timing-Corrected"){
+  counts.chr <- x$counts[seqnames(x$counts) == chr]
+  #counts.chr <- counts[[1]]$counts[seqnames(counts[[1]]$counts) == chr]
+  
+  fit.map <- data.fit(counts.chr, y = before)
+  midpt <- fit.map$midpt
+  domain <- c(min(midpt, na.rm = TRUE), max(midpt, na.rm = TRUE))
+  xlim <- c(domain[1], domain[2])
+  ylim <- c(min(c(counts.chr$cor.map, counts.chr$repTime), na.rm = TRUE),
+            max(c(counts.chr$cor.map, counts.chr$repTime), na.rm = TRUE))
+  
+  par(mfrow = c(6,1), mar = c(4,6,1,3))
+  
+  # before rep time, after mappability
+  plot(midpt, fit.map$y.hat, type="l", lwd=1, col="red", xlab = paste0("Chromosome ", chr), 
+       ylab = paste0(beforeName, "\nTumor Read Counts"))
+  # after rep time
+  fit.rep <- data.fit(counts.chr, y = after)
+  plot(midpt, fit.rep$y.hat, type="l", lwd=1, col="red", xlab = paste0("Chromosome ", chr), 
+       ylab = paste0(afterName, "\nTumor Read Counts"))
+  if (length(values(counts.chr)[[paste0(before, ".normal")]]) > 0){
+    fit.map.normal <- data.fit(counts.chr, y = paste0(before, ".normal"))
+    plot(midpt, fit.map.normal$y.hat, type="l", lwd=1, col="red", xlab = paste0("Chromosome ", chr), 
+         ylab = paste0(beforeName, "\nNormal Read Counts"))
+    fit.copy <- data.fit(counts.chr, y = "copy")
+    fit.rep.normal <- data.fit(counts.chr, y = paste0(after, ".normal"))
+    plot(midpt, fit.rep.normal$y.hat, type="l", lwd=1, col="red", xlab = paste0("Chromosome ", chr), 
+         ylab = paste0(afterName, "\nNormal Read Counts"))
+    plot(midpt, 2^fit.copy$y.hat, type="l", lwd=1, col="blue", xlab = paste0("Chromosome ", chr), 
+         ylab = "Tumour:Normal Read Counts")
+  }
+  
+  # covariance (e.g. gc, repTime)
+  fit.covar <- data.fit(counts.chr, y = covar)
+  plot(midpt, values(counts.chr)[[covar]], type = "l", xlab = paste0("Chromosome ", chr), 
+       ylab = covarName)
+  
 }

@@ -1,12 +1,11 @@
 # file:   EM.R
 # author: Gavin Ha, Ph.D.
-#         Justin Rhoades
-#               Dana-Farber Cancer Institute
-#               Broad Institute
-# contact: <gavinha@broadinstitute.org>
-# ULP-WGS website: http://www.broadinstitute.org/~gavinha/ULP-WGS/
-# HMMcopy website: http://compbio.bccrc.ca/software/hmmcopy/ and https://www.bioconductor.org/packages/release/bioc/html/HMMcopy.html
-# date:   Oct 26, 2016
+#         Fred Hutchinson Cancer Research Center
+# contact: <gha@fredhutch.org>
+# website: https://GavinHaLab.org
+#
+# ichorCNA website: https://github.com/GavinHaLab/ichorCNA
+# date:   January 6, 2020
 # description: Hidden Markov model (HMM) to analyze Ultra-low pass whole genome sequencing (ULP-WGS) data.
 # This script is the main script to run the HMM.
 
@@ -88,7 +87,7 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
     #   probs <- normalpdf(copy, mus[ks, , i], varsKS[ks, ])
     #   apply(probs, 1, prod)
     # }))
-    py <- getNormLik(copy, mus[, , i], varsKS, param$sw)
+    py <- getNormLik(copy, mus[, , i, drop = FALSE], varsKS, param$sw)
   }
   
   loglik[i] <- -Inf
@@ -186,7 +185,7 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
       #   probs <- normalpdf(copy, mus[ks, , i], varsKS[ks, ])
       #   apply(probs, 1, prod)
       # }))
-      py <- getNormLik(copy, mus[, , i], varsKS, param$sw)
+      py <- getNormLik(copy, mus[, , i, drop = FALSE], varsKS, param$sw)
     }
     
     prior <- priorProbs(n[, i], sp[, i], phi[, i], lambdas[, , i], varsKS, piG[, i], A, param, 
@@ -378,7 +377,7 @@ getNormLik <- function(copy, mus, varsKS, sw){
   py <- t(sapply(1:KS, function(ks) {
     y <- NULL
     for (s in 1:S){
-      sl <- normalpdf(copy[, s], mus[ks, s], varsKS[ks, s]) ^ sw[s]
+      sl <- normalpdf(copy[, s], mus[ks, s, 1], varsKS[ks, s]) ^ sw[s]
       y <- cbind(y, sl)
     }
     probs <- apply(y, 1, prod)

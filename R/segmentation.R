@@ -1,12 +1,11 @@
 # file:   segmentation.R
 # author: Gavin Ha, Ph.D.
-#         Justin Rhoades
-#               Dana-Farber Cancer Institute
-#               Broad Institute
-# contact: <gavinha@broadinstitute.org>
-# ULP-WGS website: http://www.broadinstitute.org/~gavinha/ULP-WGS/
-# HMMcopy website: http://compbio.bccrc.ca/software/hmmcopy/ and https://www.bioconductor.org/packages/release/bioc/html/HMMcopy.html
-# date:   Oct 26, 2016
+#         Fred Hutchinson Cancer Research Center
+# contact: <gha@fredhutch.org>
+# website: https://GavinHaLab.org
+#
+# ichorCNA website: https://github.com/GavinHaLab/ichorCNA
+# date:   January 6, 2020
 # description: Hidden Markov model (HMM) to analyze Ultra-low pass whole genome sequencing (ULP-WGS) data.
 # This script is the main script to run the HMM.
 
@@ -125,7 +124,7 @@ getTransitionMatrix <- function(K, e, strength){
   return(list(A=A, dirPrior=dirPrior))
 }
 
-getDefaultParameters <- function(x, maxCN = 5, ct.sc = c(1,3), n_0 = 0.5, phi_0 = 2, 
+getDefaultParameters <- function(x, maxCN = 5, ct.sc = c(1,3), n_0 = 0.5, ploidy_0 = 2, 
                                  e = 0.9999999, e.sameState = 10, strength = 10000000, 
                                  includeHOMD = FALSE, likModel = "t"){
   if (includeHOMD){
@@ -137,20 +136,21 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = c(1,3), n_0 = 0.5, phi_0 
 		strength = strength, e = e,
 		ct = c(ct, scStates),
 		ct.sc.status = c(rep(FALSE, length(ct)), rep(TRUE, length(ct.sc))),
-		phi_0 = phi_0, alphaPhi = 4, betaPhi = 1.5,
+		phi_0 = ploidy_0, alphaPhi = 4, betaPhi = 1.5,
 		n_0 = n_0, alphaN = 2, betaN = 2,
 		sp_0 = 0.01, alphaSp = 2, betaSp = 2,
 		lambda = as.matrix(rep(100, length(ct)+length(ct.sc)), ncol=1),
 		nu = 2.1,
 		kappa = rep(75, length(ct)), 
 		alphaLambda = 5,
-		betaVar = 1
+		betaVar = 1,
+		likModel = likModel
 	)
 	K <- length(param$ct)
 	S <- ncol(x)
 	KS <- K ^ S
 	
-	if (grep("gauss", likModel, ignore.case = TRUE)){
+	if (grepl("gauss", likModel, ignore.case = TRUE)){
 	  likModel <- "Gaussian"
 	  param$likModel <- likModel
 	}
@@ -177,6 +177,7 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = c(1,3), n_0 = 0.5, phi_0 
     }else{
       param$cor <- var(x)
       param$covar <- 1
+      param$sw <- 1
     }
     #param$var <- t(replicate(K, diag(covar$covar)))
     param$var <- matrix(apply(x, 2, var, na.rm=T), ncol = S, nrow = K, byrow = TRUE)

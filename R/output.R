@@ -1,12 +1,13 @@
 # file:   output.R
 # author: Gavin Ha, Ph.D.
-#		Fred Hutchinson Cancer Research Center
+#         Fred Hutchinson Cancer Research Center
 # contact: <gha@fredhutch.org>
-# author: Justin Rhoades
-#       Dana-Farber Cancer Institute
-#       Broad Institute
-# https://github.com/broadinstitute/ichorCNA
-# date:  July 12, 2019
+# # website: https://GavinHaLab.org
+#
+# author: Justin Rhoades, Broad Institute
+#
+# ichorCNA website: https://github.com/broadinstitute/ichorCNA
+# date:   January 6, 2020
 # description: Hidden Markov model (HMM) to analyze Ultra-low pass whole genome sequencing (ULP-WGS) data.
 
 ##################################################
