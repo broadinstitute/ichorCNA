@@ -576,7 +576,7 @@ plotCovarBias <- function(correctOutput, covar = "gc",
 ## y is the character string for the column to fit the data
 ## x is the GRanges object
 data.fit <- function(x, y){
-  ind <- !is.na(values(counts.chr)[[before]])
+  ind <- !is.na(values(x)[[y]])
   x <- x[ind]
   midpt <- start(ranges(x)) + (end(ranges(x)) - start(ranges(x)))
   fit <- loess(values(x)[[y]] ~ midpt, span = 0.03)
@@ -605,23 +605,24 @@ plotFitCompareByChr <- function(x, chr, covar = "repTime", covarName = "Replicat
        ylab = paste0(beforeName, "\nTumor Read Counts"))
   # after rep time
   fit.rep <- data.fit(counts.chr, y = after)
-  plot(midpt, fit.rep$y.hat, type="l", lwd=1, col="red", xlab = paste0("Chromosome ", chr), 
+  plot(fit.rep$midpt, fit.rep$y.hat, type="l", lwd=1, col="red", xlab = paste0("Chromosome ", chr), 
        ylab = paste0(afterName, "\nTumor Read Counts"))
   if (length(values(counts.chr)[[paste0(before, ".normal")]]) > 0){
     fit.map.normal <- data.fit(counts.chr, y = paste0(before, ".normal"))
-    plot(midpt, fit.map.normal$y.hat, type="l", lwd=1, col="red", xlab = paste0("Chromosome ", chr), 
+    plot(fit.map.normal$midpt, fit.map.normal$y.hat, type="l", lwd=1, col="red", xlab = paste0("Chromosome ", chr), 
          ylab = paste0(beforeName, "\nNormal Read Counts"))
-    fit.copy <- data.fit(counts.chr, y = "copy")
     fit.rep.normal <- data.fit(counts.chr, y = paste0(after, ".normal"))
-    plot(midpt, fit.rep.normal$y.hat, type="l", lwd=1, col="red", xlab = paste0("Chromosome ", chr), 
+    plot(fit.rep.normal$midpt, fit.rep.normal$y.hat, type="l", lwd=1, col="red", xlab = paste0("Chromosome ", chr), 
          ylab = paste0(afterName, "\nNormal Read Counts"))
-    plot(midpt, 2^fit.copy$y.hat, type="l", lwd=1, col="blue", xlab = paste0("Chromosome ", chr), 
+    fit.copy <- data.fit(counts.chr, y = "copy")
+    plot(fit.copy$midpt, 2^fit.copy$y.hat, type="l", lwd=1, col="blue", xlab = paste0("Chromosome ", chr), 
          ylab = "Tumour:Normal Read Counts")
   }
   
   # covariance (e.g. gc, repTime)
   fit.covar <- data.fit(counts.chr, y = covar)
-  plot(midpt, values(counts.chr)[[covar]], type = "l", xlab = paste0("Chromosome ", chr), 
+  covar.midpt <- start(ranges(counts.chr)) + (end(ranges(counts.chr)) - start(ranges(counts.chr)))
+  plot(covar.midpt, values(counts.chr)[[covar]], type = "l", xlab = paste0("Chromosome ", chr), 
        ylab = covarName)
   
 }
