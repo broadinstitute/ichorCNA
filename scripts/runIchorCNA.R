@@ -169,6 +169,7 @@ repTime <- wigToGRanges(repTimeWig)
 if (is.null(repTime)){
   message("No replication timing wig file input, excluding from correction")
 }
+repTime$value <- repTime$value / 100 ## values in [0,1] - for LNCaP_repTime_10kb_hg38.txt
 
 ## LOAD IN WIG FILES ##
 numSamples <- nrow(wigFiles)

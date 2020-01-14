@@ -541,8 +541,12 @@ plotCovarBias <- function(correctOutput, covar = "gc",
   counts <- as.data.frame(correctOutput$counts)
   
   # select points to show (before)
-  set <- which(counts$ideal)
-  select.1 <- sample(set, min(length(set), points))
+  #set <- which(counts$ideal)
+  range <- quantile(counts[[before]][counts$ideal], 
+                    prob = c(0, 1 - coutlier), na.rm = TRUE)
+  valid <- which(counts[[before]] >= range[1] & counts[[before]] <= range[2])
+  set <- intersect(counts$ideal, valid)
+  select.1 <- sample(valid, min(length(valid), points))
   
   # plot before correction
   plot(counts[[covar]][select.1], counts[[before]][select.1], 
@@ -551,7 +555,7 @@ plotCovarBias <- function(correctOutput, covar = "gc",
        ...)
   # plot curve fit line
   if (!is.null(fit)){
-    domain <- c(min(counts$repTime, na.rm = TRUE), max(counts$repTime, na.rm = TRUE))
+    domain <- c(min(counts[[covar]], na.rm = TRUE), max(counts[[covar]], na.rm = TRUE))
     fit.covar <- correctOutput[[fit]]
     i <- seq(domain[1], domain[2], by = 0.001)
     y <- predict(fit.covar, i)
@@ -562,8 +566,7 @@ plotCovarBias <- function(correctOutput, covar = "gc",
   coutlier = 0.001
   range <- quantile(counts[[after]][counts$ideal], 
                     prob = c(0, 1 - coutlier), na.rm = TRUE)
-  valid <- which(counts[[after]] >= range[1] & counts[[after]] <= 
-                   range[2])
+  valid <- which(counts[[after]] >= range[1] & counts[[after]] <= range[2])
   select.2 <- intersect(valid, select.1)
   # plot after correction
   plot(counts[[covar]][select.2], counts[[after]][select.2], 

@@ -150,8 +150,8 @@ loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, m
 	  seqlevelsStyle(repTime) <- genomeStyle
 	  tryCatch({
 	    counts$repTime <- keepChr(repTime, chrs)$value
-	    counts$repTime <- 1 / (1 + exp(-1 * counts$repTime)) # logistic transformation
-	    counts$repTime <- 1 - counts$repTime # use the inverse
+	    #counts$repTime <- 1 / (1 + exp(-1 * counts$repTime)) # logistic transformation
+	    #counts$repTime <- counts$repTime # use the inverse
 	  }, error = function(e){
 	    stop("loadReadCountsFromWig: Number of bins in repTime different than input wig.")
 	  })
