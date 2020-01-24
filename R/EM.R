@@ -170,7 +170,7 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
     estF <- output$F
     
     # Recalculate the likelihood
-    #varsKS <- as.matrix(expand.grid(as.data.frame(vars[, , i])))
+    varsKS <- as.matrix(expand.grid(as.data.frame(vars[, , i])))
     mus[, , i] <- as.matrix(get2and3ComponentMixture(param$jointCNstates, param$jointSCstatus, n[, i], sp[, i], phi[, i]))
     if (param$likModel == "t"){
       for (ks in 1:KS) {

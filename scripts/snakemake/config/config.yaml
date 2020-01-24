@@ -14,6 +14,7 @@ ichorCNA_normalPanel: ../../inst/extdata/HD_ULP_PoN_1Mb_median_normAutosome_mapS
 ichorCNA_gcWig: ../../inst/extdata/gc_hg19_1000kb.wig
 # must use map wig file corresponding to same binSize (required)
 ichorCNA_mapWig:  ../../inst/extdata/map_hg19_1000kb.wig
+ichorCNA_repTimeWig: None
 # use bed file if sample has targeted regions, eg. exome data (optional)
 ichorCNA_exons:  NULL
 ichorCNA_centromere:  ../../inst/extdata/GRCh37.p13_centromere_UCSC-gapTable.txt
@@ -36,6 +37,7 @@ ichorCNA_estimateClonality: TRUE
 ichorCNA_scStates:  c(1,3)
 # set maximum copy number to use
 ichorCNA_maxCN:  5
+ichorCNA_likModel: t
 # TRUE/FALSE to include homozygous deletion state
 ichorCNA_includeHOMD: FALSE
 # Exclude solutions if total length of subclonal CNAs > this fraction of the genome 

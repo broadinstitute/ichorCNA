@@ -127,7 +127,7 @@ if (!is.null(libdir) && libdir != "None"){
 }
 
 ## load seqinfo 
-seqinfo <- getSeqInfo(genomeBuild, genomeStyle)
+seqinfo <- getSeqInfo(genomeBuild, genomeStyle, chrs)
 
 if (substr(tumour_file,nchar(tumour_file)-2,nchar(tumour_file)) == "wig") {
   wigFiles <- data.frame(cbind(patientID, tumour_file))
@@ -168,8 +168,12 @@ if (is.null(map)){
 repTime <- wigToGRanges(repTimeWig)
 if (is.null(repTime)){
   message("No replication timing wig file input, excluding from correction")
+}else{
+  if (mean(repTime$value, na.rm = TRUE) > 1){
+    repTime$value <- repTime$value / 100 ## values in [0,1] - for LNCaP_repTime_10kb_hg38.txt
+  }
 }
-repTime$value <- repTime$value / 100 ## values in [0,1] - for LNCaP_repTime_10kb_hg38.txt
+
 
 ## LOAD IN WIG FILES ##
 numSamples <- nrow(wigFiles)
@@ -352,6 +356,8 @@ for (i in 1:length(ploidy)){
     counter <- counter + 1
   }
 }
+## remove solutions witn a likelihood of NA (i.e. no solution)
+loglik <- loglik[!is.na(loglik$loglik), ]
 ## get total time for all solutions ##
 elapsedTimeSolutions <- proc.time() - ptmTotalSolutions
 message("Total ULP-WGS HMM Runtime: ", format(elapsedTimeSolutions[3] / 60, digits = 2), " min.")
