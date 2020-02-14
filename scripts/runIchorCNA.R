@@ -21,6 +21,7 @@ option_list <- list(
   make_option(c("--mapWig"), type = "character", default=NULL, help = "Path to mappability score WIG file. Default: [%default]"),
   make_option(c("--repTimeWig"), type = "character", default=NULL, help ="Path to replication timing WIG file. Default: [%default]"),
   make_option(c("--normalPanel"), type="character", default=NULL, help="Median corrected depth from panel of normals. Default: [%default]"),
+  make_option(c("--sex"), type = "character", default = NULL, help = "User specified gender: male or female [Default: %default]"),
   make_option(c("--exons.bed"), type = "character", default=NULL, help = "Path to bed file containing exon regions. Default: [%default]"),
   make_option(c("--id"), type = "character", default="test", help = "Patient ID. Default: [%default]"),
   make_option(c("--centromere"), type="character", default=NULL, help = "File containing Centromere locations; if not provided then will use hg19 version from ichorCNA package. Default: [%default]"),
@@ -75,6 +76,7 @@ gcWig <- opt$gcWig
 mapWig <- opt$mapWig
 repTimeWig <- opt$repTimeWig
 normal_panel <- opt$normalPanel
+sex <- opt$sex
 exons.bed <- opt$exons.bed  # "0" if none specified
 centromere <- opt$centromere
 minMapScore <- opt$minMapScore
@@ -104,7 +106,6 @@ outDir <- opt$outDir
 libdir <- opt$libdir
 plotFileType <- opt$plotFileType
 plotYLim <- eval(parse(text=opt$plotYLim))
-gender <- NULL
 outImage <- paste0(outDir,"/", patientID,".RData")
 genomeBuild <- opt$genomeBuild
 genomeStyle <- opt$genomeStyle
@@ -193,6 +194,12 @@ for (i in 1:numSamples) {
                                        genomeStyle = genomeStyle, fracReadsInChrYForMale = fracReadsInChrYForMale,
                                        chrNormalize = chrNormalize, mapScoreThres = minMapScore)
   gender <- counts[[id]]$gender
+  
+  if (!is.null(sex) && gender$gender != sex ){ #compare with user-defined sex
+    message("Estimated gender (", gender$gender, ") doesn't match to user-defined gender (", sex, "). Use ", sex, " instead.")
+    gender$gender <- sex
+  }
+  
   ## load in normal file if provided 
   if (!is.null(normal_file) && normal_file != "None" && normal_file != "NULL"){
   	message("Loading normal file:", normal_file)
