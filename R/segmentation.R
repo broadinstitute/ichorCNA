@@ -134,7 +134,7 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = c(1,3), n_0 = 0.5, ploidy
   }
 	param <- list(
 		strength = strength, e = e,
-		ct = c(ct, scStates),
+		ct = c(ct, ct.sc),
 		ct.sc.status = c(rep(FALSE, length(ct)), rep(TRUE, length(ct.sc))),
 		phi_0 = ploidy_0, alphaPhi = 4, betaPhi = 1.5,
 		n_0 = n_0, alphaN = 2, betaN = 2,

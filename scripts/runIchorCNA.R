@@ -277,11 +277,17 @@ for (i in 1:length(ploidy)){
     n <- as.numeric(normal.restarts[j, ])
     ## skip restarts where normal=0.95 and ploidy not diploid (2)
     if (sum(n == 0.95 & p != 2) > 0) {
-        next
+      next
     }
+    scStates.toUse <- scStates
+    ## ignore subclones when normal=0.95
+    if (n == 0.95){
+      scStates.toUse <- c()
+    }
+    
     logR <- as.data.frame(lapply(tumour_copy, function(x) { x$copy })) # NEED TO EXCLUDE CHR X #
     param <- getDefaultParameters(logR[valid & chrInd, , drop=F], maxCN = maxCN, includeHOMD = includeHOMD, 
-                ct.sc=scStates, ploidy_0 = floor(p), e=txnE, e.same = 50, strength=txnStrength, likModel = likModel)
+                ct.sc=scStates.toUse, ploidy_0 = floor(p), e=txnE, e.same = 50, strength=txnStrength, likModel = likModel)
     param$n_0 <- as.numeric(n)
     param$phi_0 <- as.numeric(p)
     param$sw <- rep(1, S)

@@ -207,8 +207,8 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
       converged = 0
     }
     if (loglik[i] < loglik[i - 1]){
-      message("LIKELIHOOD DECREASED!!!")
-      #message("Using previous iteration ", i-2)
+      #message("LIKELIHOOD DECREASED!!!")
+      message("Using previous iteration ", i-2)
       i <- i - 1
       converged = 1
     }
