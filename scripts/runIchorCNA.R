@@ -212,11 +212,10 @@ for (i in 1:numSamples) {
   	counts[[id]]$counts$cor.gc.normal <- counts.normal$counts$cor.gc
   	counts[[id]]$counts$cor.map.normal <- counts.normal$counts$cor.map
   	counts[[id]]$counts$cor.rep.normal <- counts.normal$counts$cor.rep
-  	gender.normal <- counts$gender
+  	gender.normal <- counts[[id]]$gender
   }else{
 	  normal_copy <- NULL
   }
-
   ### DETERMINE GENDER ###
   ## if normal file not given, use chrY, else use chrX
   message("Determining gender...", appendLF = FALSE)
