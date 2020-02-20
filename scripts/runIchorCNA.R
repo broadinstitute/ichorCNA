@@ -21,6 +21,7 @@ option_list <- list(
   make_option(c("--mapWig"), type = "character", default=NULL, help = "Path to mappability score WIG file. Default: [%default]"),
   make_option(c("--repTimeWig"), type = "character", default=NULL, help ="Path to replication timing WIG file. Default: [%default]"),
   make_option(c("--normalPanel"), type="character", default=NULL, help="Median corrected depth from panel of normals. Default: [%default]"),
+  make_option(c("--sex"), type = "character", default = NULL, help = "User specified gender: male or female [Default: %default]"),
   make_option(c("--exons.bed"), type = "character", default=NULL, help = "Path to bed file containing exon regions. Default: [%default]"),
   make_option(c("--id"), type = "character", default="test", help = "Patient ID. Default: [%default]"),
   make_option(c("--centromere"), type="character", default=NULL, help = "File containing Centromere locations; if not provided then will use hg19 version from ichorCNA package. Default: [%default]"),
@@ -75,6 +76,7 @@ gcWig <- opt$gcWig
 mapWig <- opt$mapWig
 repTimeWig <- opt$repTimeWig
 normal_panel <- opt$normalPanel
+sex <- opt$sex
 exons.bed <- opt$exons.bed  # "0" if none specified
 centromere <- opt$centromere
 minMapScore <- opt$minMapScore
@@ -104,7 +106,6 @@ outDir <- opt$outDir
 libdir <- opt$libdir
 plotFileType <- opt$plotFileType
 plotYLim <- eval(parse(text=opt$plotYLim))
-gender <- NULL
 outImage <- paste0(outDir,"/", patientID,".RData")
 genomeBuild <- opt$genomeBuild
 genomeStyle <- opt$genomeStyle
@@ -127,7 +128,7 @@ if (!is.null(libdir) && libdir != "None"){
 }
 
 ## load seqinfo 
-seqinfo <- getSeqInfo(genomeBuild, genomeStyle)
+seqinfo <- getSeqInfo(genomeBuild, genomeStyle, chrs)
 
 if (substr(tumour_file,nchar(tumour_file)-2,nchar(tumour_file)) == "wig") {
   wigFiles <- data.frame(cbind(patientID, tumour_file))
@@ -168,8 +169,12 @@ if (is.null(map)){
 repTime <- wigToGRanges(repTimeWig)
 if (is.null(repTime)){
   message("No replication timing wig file input, excluding from correction")
+}else{
+  if (mean(repTime$value, na.rm = TRUE) > 1){
+    repTime$value <- repTime$value / 100 ## values in [0,1] - for LNCaP_repTime_10kb_hg38.txt
+  }
 }
-repTime$value <- repTime$value / 100 ## values in [0,1] - for LNCaP_repTime_10kb_hg38.txt
+
 
 ## LOAD IN WIG FILES ##
 numSamples <- nrow(wigFiles)
@@ -189,6 +194,12 @@ for (i in 1:numSamples) {
                                        genomeStyle = genomeStyle, fracReadsInChrYForMale = fracReadsInChrYForMale,
                                        chrNormalize = chrNormalize, mapScoreThres = minMapScore)
   gender <- counts[[id]]$gender
+  
+  if (!is.null(sex) && gender$gender != sex ){ #compare with user-defined sex
+    message("Estimated gender (", gender$gender, ") doesn't match to user-defined gender (", sex, "). Use ", sex, " instead.")
+    gender$gender <- sex
+  }
+  
   ## load in normal file if provided 
   if (!is.null(normal_file) && normal_file != "None" && normal_file != "NULL"){
   	message("Loading normal file:", normal_file)
@@ -201,11 +212,10 @@ for (i in 1:numSamples) {
   	counts[[id]]$counts$cor.gc.normal <- counts.normal$counts$cor.gc
   	counts[[id]]$counts$cor.map.normal <- counts.normal$counts$cor.map
   	counts[[id]]$counts$cor.rep.normal <- counts.normal$counts$cor.rep
-  	gender.normal <- counts$gender
+  	gender.normal <- counts[[id]]$gender
   }else{
 	  normal_copy <- NULL
   }
-
   ### DETERMINE GENDER ###
   ## if normal file not given, use chrY, else use chrX
   message("Determining gender...", appendLF = FALSE)
@@ -352,6 +362,8 @@ for (i in 1:length(ploidy)){
     counter <- counter + 1
   }
 }
+## remove solutions witn a likelihood of NA (i.e. no solution)
+loglik <- loglik[!is.na(loglik$loglik), ]
 ## get total time for all solutions ##
 elapsedTimeSolutions <- proc.time() - ptmTotalSolutions
 message("Total ULP-WGS HMM Runtime: ", format(elapsedTimeSolutions[3] / 60, digits = 2), " min.")

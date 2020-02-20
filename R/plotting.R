@@ -538,16 +538,17 @@ plotCovarBias <- function(correctOutput, covar = "gc",
   if (!is.null(mfrow)){
     par(mfrow = mfrow)
   }
+  coutlier = 0.001
   counts <- as.data.frame(correctOutput$counts)
   
   # select points to show (before)
-  #set <- which(counts$ideal)
-  range <- quantile(counts[[before]][counts$ideal], 
-                    prob = c(0, 1 - coutlier), na.rm = TRUE)
-  valid <- which(counts[[before]] >= range[1] & counts[[before]] <= range[2])
-  set <- intersect(counts$ideal, valid)
-  select.1 <- sample(valid, min(length(valid), points))
-  
+  set <- which(counts$ideal)
+  #range <- quantile(counts[[before]][counts$ideal], 
+  #                  prob = c(0, 1 - coutlier), na.rm = TRUE)
+  #valid <- which(counts[[before]] >= range[1] & counts[[before]] <= range[2])
+  #set <- intersect(counts$ideal, valid)
+  #select.1 <- sample(valid, min(length(valid), points))
+  select.1 <- sample(set, min(length(set), points))
   # plot before correction
   plot(counts[[covar]][select.1], counts[[before]][select.1], 
        col = densCols(counts[[covar]][select.1], counts[[before]][select.1]), 
@@ -563,7 +564,6 @@ plotCovarBias <- function(correctOutput, covar = "gc",
   }
   
   # select points to show (after)
-  coutlier = 0.001
   range <- quantile(counts[[after]][counts$ideal], 
                     prob = c(0, 1 - coutlier), na.rm = TRUE)
   valid <- which(counts[[after]] >= range[1] & counts[[after]] <= range[2])
