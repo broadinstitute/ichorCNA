@@ -1,0 +1,22 @@
+## path to scripts ##
+plotCN_script:  code/plotIchorCNAzoom.R
+
+## reference files ##
+genomeBuild:  hg38
+genomeStyle:  UCSC
+
+## Plotting parameters ##
+## include list of genes to annotate on plot
+plot_geneFile:  data/regions.txt 
+## plot type for y-axis: "integer" copy number or "logratio"
+plot_yaxis: integer 
+
+## if users want to zoom in on a specific region, here is an example ##
+plot_id: "RB1"
+plot_zoom:  FALSE  # use TRUE if plot_startPos and plot_endPos provided
+plot_chr:  "chr13"
+plot_startPos:  None
+plot_endPos:  None
+plot_ylim:  c(-2,2)
+plot_size:  c(5,3)
+plot_format:  png # png or pdf
