@@ -24,7 +24,7 @@ ichorCNA_fracReadsInChrYForMale: 0.002
 ichorCNA_genomeBuild:  hg19
 ichorCNA_genomeStyle:  NCBI
 
-ichorCNA_sex: female
+ichorCNA_sex: None  # use female or male if know the sex of all samples (note every sample must have same sex)
 # chrs used for training ichorCNA parameters, e.g. tumor fraction. 
 ichorCNA_chrTrain:  c(1:22)
 # non-tumor fraction parameter restart values; higher values should be included for cfDNA

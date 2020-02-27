@@ -195,7 +195,7 @@ for (i in 1:numSamples) {
                                        chrNormalize = chrNormalize, mapScoreThres = minMapScore)
   gender <- counts[[id]]$gender
   
-  if (!is.null(sex) && gender$gender != sex ){ #compare with user-defined sex
+  if ((!is.null(sex) || sex != "None") && gender$gender != sex ){ #compare with user-defined sex
     message("Estimated gender (", gender$gender, ") doesn't match to user-defined gender (", sex, "). Use ", sex, " instead.")
     gender$gender <- sex
   }
