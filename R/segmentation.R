@@ -125,6 +125,7 @@ getTransitionMatrix <- function(K, e, strength){
 }
 
 getDefaultParameters <- function(x, maxCN = 5, ct.sc = c(1,3), n_0 = 0.5, ploidy_0 = 2, 
+                                 normalIgnoreSC = 0.9,
                                  e = 0.9999999, e.sameState = 10, strength = 10000000, 
                                  includeHOMD = FALSE, likModel = "t"){
   if (includeHOMD){
@@ -197,7 +198,7 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = c(1,3), n_0 = 0.5, ploidy
 	logR.var <- 1 / ((apply(x, 2, sd, na.rm = TRUE) / sqrt(K)) ^ 2)
 	if (!is.null(dim(x))){ # multiple samples (columns)
 		param$lambda <- matrix(logR.var, nrow=K, ncol=S, byrow=T, dimnames=list(c(),colnames(x)))
-	}else{ # only 1 sample    
+	}else{ # only 1 sample and using student's-t likelihood model
 		#logR.var <- 1 / ((sd(x, na.rm = TRUE) / sqrt(length(param$ct))) ^ 2)
     param$lambda <- matrix(logR.var, length(param$ct))
     param$lambda[param$ct %in% c(2)] <- logR.var 
@@ -210,7 +211,7 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = c(1,3), n_0 = 0.5, ploidy
 	param$jointStates <- expand.grid(rep(list(1:length(param$ct)), S))
   param$jointCNstates <- expand.grid(rep(list(param$ct), S))
   param$jointSCstatus <- expand.grid(rep(list(param$ct.sc.status), S))
-  KS <- nrow(param$jointCNstates)
+  #KS <- nrow(param$jointCNstates)
   #param$covar <- replicate(KS, covar$covar)
 	
   colnames(param$jointCNstates) <- paste0("Sample.", 1:param$numberSamples)
@@ -251,6 +252,28 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = c(1,3), n_0 = 0.5, ploidy
   param$kappa[cnStateDiff == 0] <- param$kappa[cnStateDiff == 0] + 125
 	param$kappa[cnStateDiff >=3] <- param$kappa[cnStateDiff >=3] - 50
 	param$kappa[which(rowSums(param$jointCNstates==2) == S)] <- 800
+
+  # ignore subclones for sample with n >= normalIgnoreSC
+  indKS <- 1:nrow(param$jointSCstatus) # use all joint states
+  indK <- 1:length(param$ct.sc.status)
+  if (sum(n_0 >= normalIgnoreSC) > 0){
+    for (i in which(n_0 >= normalIgnoreSC)){
+      # keep states excluding subclones for samples with n >= normalIgnoreSC
+      indKS <- intersect(indKS, which(!param$jointSCstatus[, i]))
+      indK <- intersect(indK, which(param$ct.sc.status))
+      param$lambda[indK, i] <- NaN
+      param$betaLambda[indK, i] <- NaN
+      param$var[indK, i] <- NaN      
+    }
+
+    param$kappa <- param$kappa[indKS]
+    param$alphaVar <- param$alphaVar[indKS, ]
+    param$jointStates <- param$jointStates[indKS, ]
+    param$jointCNstates <- param$jointCNstates[indKS, ]
+    param$jointSCstatus <- param$jointSCstatus[indKS, ]
+    param$A <- param$A[indKS, indKS]
+    param$dirPrior <- param$dirPrior[indKS, indKS]
+  } 
   
   return(param)
 }

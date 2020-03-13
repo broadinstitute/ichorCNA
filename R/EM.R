@@ -33,7 +33,7 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
   rho <- matrix(0, KS, N)
   lambdas <- array(0, dim = c(K, S, maxiter))  # State Variances
   #covars <- rep(list(NULL), maxiter) #State covariance matrices
-  vars <- array(0, dim = c(K, S, maxiter))
+  vars <- array(0, dim = c(KS, S, maxiter)) #array(0, dim = c(K, S, maxiter))
   phi <- matrix(NA, length(param$phi_0), maxiter)					 # Tumour ploidy
   n <- matrix(NA, S, maxiter)						 # Normal contamination
   sp <- matrix(NA, S, maxiter)     # cellular prevalence (tumor does not contain event)
@@ -64,11 +64,11 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
   sp[, i] <- param$sp_0
   phi[, i] <- param$phi_0
   lambdas[, , i] <- param$lambda #matrix(param$lambda, nrow = K, ncol = S, byrow = TRUE)
-  lambdasKS <- as.matrix(expand.grid(as.data.frame(lambdas[, , i]))) #as.matrix(expand.grid(rep(list(param$lambda), S)))
+  lambdasKS <- as.matrix(na.omit(expand.grid(as.data.frame(lambdas[, , i])))) #as.matrix(expand.grid(rep(list(param$lambda), S)))
   #covars[[i]] <- param$covar
   if (param$likModel == "Gaussian"){
-    vars[, , i] <- param$var
-    varsKS <- as.matrix(expand.grid(as.data.frame(vars[, , i])))
+    vars[, , i] <- as.matrix(na.omit(expand.grid(as.data.frame(param$var))))
+    varsKS <- vars[, , i]
   }
   mus[, , i] <- as.matrix(get2and3ComponentMixture(param$jointCNstates, param$jointSCstatus, n[, i], sp[, i], phi[, i]))
   
@@ -131,8 +131,7 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
                                           estimateTransition = estimateTransition,
                                           estimateInitDist = estimateInitDist, 
                                           estimateSubclone = estimateSubclone)
-      #vars[, , i] <- output$var
-      varsKS <- output$var
+      vars[, , i] <- output$var
       if (verbose == TRUE) {
         for (s in 1:S){
           message("Sample", s, " n=", signif(output$n[s], digits = 4), ", sp=", signif(output$sp[s], digits = 4), 
@@ -170,7 +169,7 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
     estF <- output$F
     
     # Recalculate the likelihood
-    varsKS <- as.matrix(expand.grid(as.data.frame(vars[, , i])))
+    varsKS <- vars[, , i]
     mus[, , i] <- as.matrix(get2and3ComponentMixture(param$jointCNstates, param$jointSCstatus, n[, i], sp[, i], phi[, i]))
     if (param$likModel == "t"){
       for (ks in 1:KS) {
@@ -373,7 +372,7 @@ getNormLik <- function(copy, mus, varsKS, sw){
   S <- param$numberSamples
   K <- length(param$ct)
   Z <- sum(param$ct.sc) #number of subclonal states (# repeated copy number states)
-  KS <- K ^ S
+  KS <- nrow(varsKS)
   py <- t(sapply(1:KS, function(ks) {
     y <- NULL
     for (s in 1:S){
@@ -817,7 +816,7 @@ priorProbs <- function(n, sp, phi, lambda, var, piG, A, params,
                        estimateSubclone = TRUE){
   S <- params$numberSamples
   K <- length(params$ct)
-  KS <- K ^ S
+  KS <- nrow(param$jointStates) #K ^ S
   ## prior terms ##
   priorA <- rep(0, KS)
   if (estimateTransition){

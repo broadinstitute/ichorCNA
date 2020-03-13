@@ -45,6 +45,8 @@ ichorCNA_includeHOMD: FALSE
 ichorCNA_maxFracGenomeSubclone: 0.5
 # Exclude solutions if total length of subclonal CNAs > this fraction of total CNA length
 ichorCNA_maxFracCNASubclone: 0.7
+# Ignore subclonal analysis when initial normal setting >= this value
+ichorCNA_normal2IgnoreSC: 1.0
 # control segmentation - higher (e.g. 0.9999999) leads to higher specificity and fewer segments
 # lower (e.g. 0.99) leads to higher sensitivity and more segments
 ichorCNA_txnE:  0.9999
