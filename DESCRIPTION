@@ -1,8 +1,8 @@
 Package: ichorCNA
 Type: Package
 Title: A tool for estimating the fraction of tumor in ultra-low-pass whole genome sequencing (ULP-WGS) of cell-free DNA
-Version: 0.3.2
-Date: 2019-07-22
+Version: 0.3.3
+Date: 2020-03-13
 Author: Gavin Ha, Justin Rhoades, Samuel Freeman
 Maintainer: Gavin Ha <gha@fredhutch.org>, Justin Rhoades <rhoades@broadinstitute.org>, Sam Freeman <sfreeman@broadinstitute.org>
 Depends: R (>= 3.6.0)
