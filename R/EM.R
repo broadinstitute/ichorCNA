@@ -68,7 +68,7 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
   #covars[[i]] <- param$covar
   if (param$likModel == "Gaussian"){
     vars[, , i] <- as.matrix(na.omit(expand.grid(as.data.frame(param$var))))
-    varsKS <- vars[, , i]
+    varsKS <- as.matrix(vars[, , i])
   }
   mus[, , i] <- as.matrix(get2and3ComponentMixture(param$jointCNstates, param$jointSCstatus, n[, i], sp[, i], phi[, i]))
   
@@ -169,7 +169,7 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
     estF <- output$F
     
     # Recalculate the likelihood
-    varsKS <- vars[, , i]
+    varsKS <- as.matrix(vars[, , i])
     mus[, , i] <- as.matrix(get2and3ComponentMixture(param$jointCNstates, param$jointSCstatus, n[, i], sp[, i], phi[, i]))
     if (param$likModel == "t"){
       for (ks in 1:KS) {
