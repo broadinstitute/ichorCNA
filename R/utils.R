@@ -14,7 +14,7 @@
 ##### FUNCTION TO FILTER CHRS ######
 ####################################
 # updated for GRanges #
-keepChr <- function(tumour_reads, chrs = c(1:22,"X","Y")){	
+keepChr <- function(tumour_reads, chrs = c(1:22,"X","Y")){
 	tumour_reads <- keepSeqlevels(tumour_reads, chrs, pruning.mode="coarse")
 	sortSeqlevels(tumour_reads)
 	return(sort(tumour_reads))
@@ -27,7 +27,7 @@ filterEmptyChr <- function(gr){
 	    sum(is.na(y)) == length(y)
 	  })
 	  sum(rowInd) == nrow(x)
-	})	
+	})
 	return(keepSeqlevels(gr, value = names(which(!ind))))
 }
 
@@ -44,7 +44,7 @@ getSeqInfo <- function(genomeBuild = "hg19", genomeStyle = "NCBI"){
 	seqlevelsStyle(seqinfo) <- genomeStyle
 	seqinfo <- keepSeqlevels(seqinfo, value = chrs)
 	#seqinfo <- cbind(seqnames = seqnames(seqinfo), as.data.frame(seqinfo))
-	return(seqinfo)	
+	return(seqinfo)
 }
 
 ##################################################
@@ -57,7 +57,7 @@ excludeCentromere <- function(x, centromere, flankLength = 0, genomeStyle = "NCB
 	centromere$end <- centromere$end + flankLength
 	centromere <- as(centromere, "GRanges")
 	seqlevelsStyle(centromere) <- genomeStyle
-	centromere <- sort(centromere)	
+	centromere <- sort(centromere)
 	hits <- findOverlaps(query = x, subject = centromere)
 	ind <- queryHits(hits)
 	message("Removed ", length(ind), " bins near centromeres.")
@@ -119,21 +119,21 @@ loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, m
 	require(HMMcopy)
 	require(GenomeInfoDb)
 	seqlevelsStyle(counts) <- genomeStyle
-	counts.raw <- counts	
+	counts.raw <- counts
 	counts <- keepChr(counts, chrs)
-	
-	if (!is.null(gc)){ 
+
+	if (!is.null(gc)){
 		seqlevelsStyle(gc) <- genomeStyle
 		counts$gc <- keepChr(gc, chrs)$value
 	}
-	if (!is.null(map)){ 
+	if (!is.null(map)){
 		seqlevelsStyle(map) <- genomeStyle
 		counts$map <- keepChr(map, chrs)$value
 	}
 	colnames(values(counts))[1] <- c("reads")
-	
+
 	# remove centromeres
-	if (!is.null(centromere)){ 
+	if (!is.null(centromere)){
 		counts <- excludeCentromere(counts, centromere, flankLength = flankLength, genomeStyle=genomeStyle)
 	}
 	# keep targeted sequences
@@ -153,7 +153,7 @@ loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, m
 		  counts <- filterByMappabilityScore(counts, map=map, mapScoreThres = mapScoreThres)
 		}
 		## get gender ##
-		gender <- getGender(counts.raw, counts, gc, map, fracReadsInChrYForMale = fracReadsInChrYForMale, 
+		gender <- getGender(counts.raw, counts, gc, map, fracReadsInChrYForMale = fracReadsInChrYForMale,
 							chrXMedianForMale = chrXMedianForMale, useChrY = useChrY,
 							centromere=centromere, flankLength=flankLength, targetedSequences = targetedSequences,
 							genomeStyle = genomeStyle)
@@ -173,15 +173,15 @@ filterByTargetedSequences <- function(counts, targetedSequences){
     ### targetedSequence = GRanges object
     ### containing list of targeted regions to consider;
     ### 3 columns: chr, start, end
-					
+
 	hits <- findOverlaps(query = counts, subject = targetedSequences)
-	keepInd <- unique(queryHits(hits))    
+	keepInd <- unique(queryHits(hits))
 
 	return(list(counts=counts, ix=keepInd))
 }
 
 selectFemaleChrXSolution <- function(){
-	
+
 }
 
 ##################################################
@@ -192,16 +192,16 @@ getGender <- function(rawReads, normReads, gc, map, fracReadsInChrYForMale = 0.0
 	chrXStr <- grep("X", runValue(seqnames(normReads)), value = TRUE)
 	chrYStr <- grep("Y", runValue(seqnames(rawReads)), value = TRUE)
 	chrXInd <- as.character(seqnames(normReads)) == chrXStr
-	if (sum(chrXInd) > 1){ ## if no X 
+	if (sum(chrXInd) > 1){ ## if no X
 		chrXMedian <- median(normReads[chrXInd, ]$copy, na.rm = TRUE)
 		# proportion of reads in chrY #
 		tumY <- loadReadCountsFromWig(rawReads, chrs=chrYStr, genomeStyle=genomeStyle,
-				gc=gc, map=map, applyCorrection = FALSE, centromere=centromere, flankLength=flankLength, 
+				gc=gc, map=map, applyCorrection = FALSE, centromere=centromere, flankLength=flankLength,
 				targetedSequences=targetedSequences)$counts
 		chrYCov <- sum(tumY$reads) / sum(rawReads$value)
 		if (chrXMedian < chrXMedianForMale){
 			if (useChrY && (chrYCov < fracReadsInChrYForMale)){ #trumps chrX if using chrY
-					gender <- "female"  
+					gender <- "female"
 			}else{
 				gender <- "male" # satisfies decreased chrX log ratio and/or increased chrY coverage
 			}
@@ -215,9 +215,9 @@ getGender <- function(rawReads, normReads, gc, map, fracReadsInChrYForMale = 0.0
 	}
 	return(list(gender=gender, chrYCovRatio=chrYCov, chrXMedian=chrXMedian))
 }
-	
-	
-normalizeByPanelOrMatchedNormal <- function(tumour_copy, chrs = c(1:22, "X", "Y"), 
+
+
+normalizeByPanelOrMatchedNormal <- function(tumour_copy, chrs = c(1:22, "X", "Y"),
       normal_panel = NULL, normal_copy = NULL, gender = "female", normalizeMaleX = FALSE){
     genomeStyle <- seqlevelsStyle(tumour_copy)[1]
     seqlevelsStyle(chrs) <- genomeStyle
@@ -314,15 +314,15 @@ correctReadCounts <- function(x, chrNormalize = c(1:22), mappability = 0.9, samp
 
 ## Recompute integer CN for high-level amplifications ##
 ## compute logR-corrected copy number ##
-correctIntegerCN <- function(cn, segs, callColName = "event", 
-		purity, ploidy, cellPrev, maxCNtoCorrect.autosomes = NULL, 
+correctIntegerCN <- function(cn, segs, callColName = "event",
+		purity, ploidy, cellPrev, maxCNtoCorrect.autosomes = NULL,
 		maxCNtoCorrect.X = NULL, correctHOMD = TRUE, minPurityToCorrect = 0.2, gender = "male", chrs = c(1:22, "X")){
 	names <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP", rep("HLAMP", 1000))
 
 	## set up chromosome style
 	autosomeStr <- grep("X|Y", chrs, value=TRUE, invert=TRUE)
 	chrXStr <- grep("X", chrs, value=TRUE)
-	
+
 	if (is.null(maxCNtoCorrect.autosomes)){
 		maxCNtoCorrect.autosomes <- max(segs[segs$chr %in% autosomeStr, "copy.number"], na.rm = TRUE)
 	}
@@ -347,15 +347,15 @@ correctIntegerCN <- function(cn, segs, callColName = "event",
 	if (purity >= minPurityToCorrect){
 		# 2) ichorCNA calls adjusted for >= copies - HLAMP
 		# perform on all chromosomes
-		ind.cn <- which(segs$copy.number >= maxCNtoCorrect.autosomes | 
+		ind.cn <- which(segs$copy.number >= maxCNtoCorrect.autosomes |
 						(segs$logR_Copy_Number >= maxCNtoCorrect.autosomes * 1.2 & !is.infinite(segs$logR_Copy_Number)))
 		segs$Corrected_Copy_Number[ind.cn] <- as.integer(round(segs$logR_Copy_Number[ind.cn]))
 		segs$Corrected_Call[ind.cn] <- names[segs$Corrected_Copy_Number[ind.cn] + 1]
 		ind.change <- c(ind.change, ind.cn)
-		
+
 		# 3) ichorCNA calls adjust for HOMD
 		if (correctHOMD){
-			ind.cn <- which(segs$chr %in% chrs & 
+			ind.cn <- which(segs$chr %in% chrs &
 				(segs$copy.number == 0 | segs$logR_Copy_Number == 1/2^6))
 			segs$Corrected_Copy_Number[ind.cn] <- as.integer(round(segs$logR_Copy_Number[ind.cn]))
 			segs$Corrected_Call[ind.cn] <- names[segs$Corrected_Copy_Number[ind.cn] + 1]
@@ -363,7 +363,7 @@ correctIntegerCN <- function(cn, segs, callColName = "event",
 		}
 		# 4) Re-adjust chrX copy number for males (females already handled above)
 		if (gender == "male" & length(chrXStr) > 0){
-			ind.cn <- which(segs$chr == chrXStr & 
+			ind.cn <- which(segs$chr == chrXStr &
 				(segs$copy.number >= maxCNtoCorrect.X | segs$logR_Copy_Number >= maxCNtoCorrect.X * 1.2))
 			segs$Corrected_Copy_Number[ind.cn] <- as.integer(round(segs$logR_Copy_Number[ind.cn]))
 			segs$Corrected_Call[ind.cn] <- names[segs$Corrected_Copy_Number[ind.cn] + 2]
@@ -385,7 +385,7 @@ correctIntegerCN <- function(cn, segs, callColName = "event",
 		# 2) correct bins overlapping adjusted segs
 		ind.change <- unique(ind.change)
 		ind.overlapSegs <- c()
-		if (length(ind.change) > 0){		
+		if (length(ind.change) > 0){
 			cn.gr <- as(cn, "GRanges")
 			segs.gr <- as(segs, "GRanges")
 			hits <- findOverlaps(query = cn.gr, subject = segs.gr[ind.change])
@@ -394,13 +394,13 @@ correctIntegerCN <- function(cn, segs, callColName = "event",
 			ind.overlapSegs <- queryHits(hits)
 		}
 		# 3) correct bins that are missed as high level amplifications
-		ind.hlamp <- which(cn$copy.number >= maxCNtoCorrect.autosomes | 
+		ind.hlamp <- which(cn$copy.number >= maxCNtoCorrect.autosomes |
 	 					(cn$logR_Copy_Number >= maxCNtoCorrect.autosomes * 1.2 & !is.infinite(cn$logR_Copy_Number)))
 		ind.cn <- unique(ind.hlamp, ind.overlapSegs)
 	 	cn$Corrected_Copy_Number[ind.cn] <- as.integer(round(cn$logR_Copy_Number[ind.cn]))
 	 	cn$Corrected_Call[ind.cn] <- names[cn$Corrected_Copy_Number[ind.cn] + 1]
 	 }
-	 
+
 	return(list(cn = cn, segs = segs))
 }
 
@@ -412,10 +412,10 @@ logRbasedCN <- function(x, purity, ploidyT, cellPrev=NA, cn = 2){
 	}else{ #if cellPrev is a vector
 		cellPrev[is.na(cellPrev)] <- 1
 	}
-	ct <- (2^x 
-		* (cn * (1 - purity) + purity * ploidyT * (cn / 2)) 
-		- (cn * (1 - purity)) 
-		- (cn * purity * (1 - cellPrev))) 
+	ct <- (2^x
+		* (cn * (1 - purity) + purity * ploidyT * (cn / 2))
+		- (cn * (1 - purity))
+		- (cn * purity * (1 - cellPrev)))
 	ct <- ct / (purity * cellPrev)
 	ct <- sapply(ct, max, 1/2^6)
 	return(ct)
@@ -431,7 +431,7 @@ computeBIC <- function(params){
   numParams <- KS * (KS - 1) + KS * (L + NP) - 1
   b <- -2 * params$loglik[iter] + numParams * log(N)
   return(b)
-} 
+}
 
 
 #############################################################
