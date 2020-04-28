@@ -298,7 +298,7 @@ for (n in normal){
 		#############################################
 		################ RUN HMM ####################
 		#############################################
-    hmmResults.cor <- HMMsegment(tumour_copy, valid, dataType = "copy", 
+    hmmResults.cor <- ichorCNA::HMMsegment(tumour_copy, valid, dataType = "copy", 
                                  param = param, chrTrain = chrTrain, maxiter = 50,
                                  estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
                                  estimateSubclone = estimateScPrevalence, verbose = TRUE)
