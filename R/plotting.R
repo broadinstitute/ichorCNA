@@ -109,16 +109,16 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir, counts,
     try(plotCovarBias(counts[[s]], covar = "gc", before = "reads", 
                     after = "cor.gc", fit = "gc.fit", xlab = "GC Content",
                     pch = 20, cex = 0.5, mfrow = NULL),
-        silent=TRUE)
+    silent = TRUE)
     try(plotCovarBias(counts[[s]], covar = "map", before = "cor.gc", 
                       after = "cor.map", fit = NULL, xlab = "Mappability Score",
                       pch = 20, cex = 0.5, mfrow = NULL),
-        silent=TRUE)
+    silent = TRUE)
+
     try(plotCovarBias(counts[[s]], covar = "repTime", before = "cor.map", 
                       after = "cor.rep", fit = "rep.fit", xlab = "Replication Timing", 
                       pch = 20, cex = 0.5, mfrow = NULL),
-        silent=TRUE)
-    
+    silent = TRUE)
     dev.off()
 
     ### PLOT TPDF ##
@@ -555,12 +555,14 @@ plotCovarBias <- function(correctOutput, covar = "gc",
        ylab = "Uncorrected", xlab = xlab, 
        ...)
   # plot curve fit line
-  if (!is.null(fit)){
-    domain <- c(min(counts[[covar]], na.rm = TRUE), max(counts[[covar]], na.rm = TRUE))
-    fit.covar <- correctOutput[[fit]]
-    i <- seq(domain[1], domain[2], by = 0.001)
-    y <- predict(fit.covar, i)
-    lines(i, y, type="l", lwd=1, col="red")
+  if (!is.null(fit)){ # want to look at fit
+    if (!is.null(correctOutput[[fit]])){ # actually have the fit object/model as list element
+      domain <- c(min(counts[[covar]], na.rm = TRUE), max(counts[[covar]], na.rm = TRUE))
+      fit.covar <- correctOutput[[fit]]
+      i <- seq(domain[1], domain[2], by = 0.001)
+      y <- predict(fit.covar, i)
+      lines(i, y, type="l", lwd=1, col="red")
+    }
   }
   
   # select points to show (after)

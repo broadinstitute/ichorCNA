@@ -125,8 +125,8 @@ getTransitionMatrix <- function(K, e, strength){
 }
 
 getDefaultParameters <- function(x, maxCN = 5, ct.sc = c(1,3), n_0 = 0.5, ploidy_0 = 2, 
-                                 normalIgnoreSC = 0.9,
-                                 e = 0.9999999, e.sameState = 10, strength = 10000000, 
+                                 normal2IgnoreSC = 0.9, e = 0.9999999, e.subclone = 0.1,
+                                 e.sameState = 50, strength = 10000000, 
                                  includeHOMD = FALSE, likModel = "t"){
   if (includeHOMD){
     ct <- 0:maxCN
@@ -144,7 +144,7 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = c(1,3), n_0 = 0.5, ploidy
 		nu = 2.1,
 		kappa = rep(75, length(ct)), 
 		alphaLambda = 5,
-		betaVar = 1,
+		betaVar = 2,
 		likModel = likModel
 	)
 	K <- length(param$ct)
@@ -183,7 +183,7 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = c(1,3), n_0 = 0.5, ploidy
     #param$var <- t(replicate(K, diag(covar$covar)))
     param$var <- matrix(apply(x, 2, var, na.rm=T), ncol = S, nrow = K, byrow = TRUE)
     param$betaVar <- rep(param$betaVar, S)
-    alphaVar <- param$betaVar / (apply(x, 2, var, na.rm = TRUE) / sqrt(K))
+    alphaVar <- 1 / (apply(x, 2, var, na.rm = TRUE) / sqrt(K) ^ 2)
     param$alphaVar <- matrix(alphaVar, ncol = S, nrow = KS, byrow = TRUE)
   }
 
@@ -220,59 +220,62 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = c(1,3), n_0 = 0.5, ploidy
 	# Initialize transition matrix to the prior
 	txn <- getTransitionMatrix(K ^ S, e, strength)
   ## set higher transition probs for same CN states across samples ##
-  # joint states where at least "tol" fraction of samples with the same CN state
+  # joint states where at least "e.sameState" fraction of samples with the same CN state
 	#apply(param$jointCNstates, 1, function(x){ sum(duplicated(as.numeric(x))) > 0 })
   cnStateDiff <- apply(param$jointCNstates, 1, function(x){ (abs(max(x) - min(x)))})
   if (e.sameState > 0 & S > 1){
 		txn$A[, cnStateDiff == 0] <- txn$A[, cnStateDiff == 0] * e.sameState * K 
 		txn$A[, cnStateDiff >= 3] <- txn$A[, cnStateDiff >=3]  / e.sameState / K
 	}
-  for (i in 1:nrow(txn$A)){
-    for (j in 1:ncol(txn$A)){
-      if (i == j){
-        txn$A[i, j] <- e
-      }
-    }
-  }
-  txn$A <- normalize(txn$A)
-	param$A <- txn$A
-	param$dirPrior <- txn$A * strength[1] 
-  param$A[, param$ct.sc.status] <- param$A[, param$ct.sc.status] / 10
-  param$A <- normalize(param$A)
-  param$dirPrior[, param$ct.sc.status] <- param$dirPrior[, param$ct.sc.status] / 10
-  
-  if (includeHOMD){
-    K <- length(param$ct)
-    param$A[1, 2:K] <- param$A[1, 2:K] * 1e-5; param$A[2:K, 1] <- param$A[2:K, 1] * 1e-5;
-    param$A[1, 1] <- param$A[1, 1] * 1e-5
-    param$A <- normalize(param$A); param$dirPrior <- param$A * param$strength
-  }
-
   param$kappa <- rep(75, K ^ S)
   param$kappa[cnStateDiff == 0] <- param$kappa[cnStateDiff == 0] + 125
-	param$kappa[cnStateDiff >=3] <- param$kappa[cnStateDiff >=3] - 50
-	param$kappa[which(rowSums(param$jointCNstates==2) == S)] <- 800
+  param$kappa[cnStateDiff >=3] <- param$kappa[cnStateDiff >=3] - 50
+  param$kappa[which(rowSums(param$jointCNstates==2) == S)] <- 800
 
-  # ignore subclones for sample with n >= normalIgnoreSC
+  # penalize homozygous deletion state
+ if (includeHOMD){
+    K <- length(param$ct)
+    txn$A[1, 2:K] <- txn$A[1, 2:K] * 1e-5; 
+    txn$A[2:K, 1] <- txn$A[2:K, 1] * 1e-5;
+    txn$A[1, 1] <- txn$A[1, 1] * 1e-5
+  }
+
+  # for (i in 1:nrow(txn$A)){
+  #     txn$A[i, i] <- e
+  # }
+
+  # penalize transitions into subclonal states
+  ind.bothSC <- rowSums(param$jointSCstatus) == S
+  txn$A[, ind.bothSC] <- txn$A[, ind.bothSC] / (e.subclone * K)
+  
+  txn$A <- normalize(txn$A)
+	param$A <- txn$A
+  param$A_prior <- param$A
+  param$dirPrior <- param$A * strength[1] 
+
+  # ignore subclones for sample with n >= normal2IgnoreSC
   indKS <- 1:nrow(param$jointSCstatus) # use all joint states
   indK <- 1:length(param$ct.sc.status)
-  if (sum(n_0 >= normalIgnoreSC) > 0){
-    for (i in which(n_0 >= normalIgnoreSC)){
-      # keep states excluding subclones for samples with n >= normalIgnoreSC
+  if (sum(n_0 >= normal2IgnoreSC) > 0){
+    for (i in which(n_0 >= normal2IgnoreSC)){
+      # keep states excluding subclones for samples with n >= normal2IgnoreSC
       indKS <- intersect(indKS, which(!param$jointSCstatus[, i]))
       indK <- intersect(indK, which(param$ct.sc.status))
       param$lambda[indK, i] <- NaN
       param$betaLambda[indK, i] <- NaN
-      param$var[indK, i] <- NaN      
+      if (likModel == "Gaussian"){
+        param$var[indK, i] <- NaN
+      }    
     }
 
     param$kappa <- param$kappa[indKS]
-    param$alphaVar <- param$alphaVar[indKS, ]
-    param$jointStates <- param$jointStates[indKS, ]
-    param$jointCNstates <- param$jointCNstates[indKS, ]
-    param$jointSCstatus <- param$jointSCstatus[indKS, ]
-    param$A <- param$A[indKS, indKS]
-    param$dirPrior <- param$dirPrior[indKS, indKS]
+    param$alphaVar <- param$alphaVar[indKS, , drop = FALSE]
+    param$jointStates <- param$jointStates[indKS, , drop = FALSE]
+    param$jointCNstates <- param$jointCNstates[indKS, , drop = FALSE]
+    param$jointSCstatus <- param$jointSCstatus[indKS, , drop = FALSE]
+    param$A <- normalize(param$A[indKS, indKS])
+    param$A_prior <- param$A
+    param$dirPrior <- param$A * strength[1]
   } 
   
   return(param)

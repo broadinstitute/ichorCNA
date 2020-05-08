@@ -36,9 +36,11 @@ ichorCNA_estimatePloidy:  TRUE
 ichorCNA_estimateClonality: TRUE
 # states to use for subclonal CN
 ichorCNA_scStates:  c(1,3)
+# penalize subclonal events - n-fold multiplier; n=1 for no penalty,  
+ichorCNA_scPenalty: 1
 # set maximum copy number to use
 ichorCNA_maxCN:  5
-ichorCNA_likModel: t
+ichorCNA_likModel: t  # if multisample, use "gauss"
 # TRUE/FALSE to include homozygous deletion state
 ichorCNA_includeHOMD: FALSE
 # Exclude solutions if total length of subclonal CNAs > this fraction of the genome 
@@ -46,7 +48,7 @@ ichorCNA_maxFracGenomeSubclone: 0.5
 # Exclude solutions if total length of subclonal CNAs > this fraction of total CNA length
 ichorCNA_maxFracCNASubclone: 0.7
 # Ignore subclonal analysis when initial normal setting >= this value
-ichorCNA_normal2IgnoreSC: 1.0
+ichorCNA_normal2IgnoreSC: 0.90
 # control segmentation - higher (e.g. 0.9999999) leads to higher specificity and fewer segments
 # lower (e.g. 0.99) leads to higher sensitivity and more segments
 ichorCNA_txnE:  0.9999

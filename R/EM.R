@@ -31,7 +31,7 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
   KS <- nrow(param$jointStates)#K ^ S
   N <- nrow(copy)
   rho <- matrix(0, KS, N)
-  lambdas <- array(0, dim = c(K, S, maxiter))  # State Variances
+  lambdas <- array(0, dim = c(nrow(na.omit(param$lambda)), S, maxiter))  # State Variances
   #covars <- rep(list(NULL), maxiter) #State covariance matrices
   vars <- array(0, dim = c(KS, S, maxiter)) #array(0, dim = c(K, S, maxiter))
   phi <- matrix(NA, length(param$phi_0), maxiter)					 # Tumour ploidy
@@ -63,7 +63,7 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
   n[, i] <- param$n_0
   sp[, i] <- param$sp_0
   phi[, i] <- param$phi_0
-  lambdas[, , i] <- param$lambda #matrix(param$lambda, nrow = K, ncol = S, byrow = TRUE)
+  lambdas[, , i] <- na.omit(param$lambda) #matrix(param$lambda, nrow = K, ncol = S, byrow = TRUE)
   lambdasKS <- as.matrix(na.omit(expand.grid(as.data.frame(lambdas[, , i])))) #as.matrix(expand.grid(rep(list(param$lambda), S)))
   #covars[[i]] <- param$covar
   if (param$likModel == "Gaussian"){
@@ -73,6 +73,10 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
   mus[, , i] <- as.matrix(get2and3ComponentMixture(param$jointCNstates, param$jointSCstatus, n[, i], sp[, i], phi[, i]))
   
   # Likelihood #
+  # if (!grepl("gauss", param$likModel, ignore.case = TRUE)){
+  #     param$likModel <- "Gaussian"
+  #     message("Switching to Gaussian likelihood model.")
+  # }
   if (param$likModel == "t"){
     for (ks in 1:KS) {
       probs <- tdistPDF(copy, mus[ks, , i], lambdasKS[ks, ], param$nu)
@@ -103,7 +107,7 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
     for (j in 1:length(chrsI)) {
       I <- intersect(chrsI[[j]], which(chrInd))
       if (length(I) > 0){
-        output <- .Call("forward_backward", piG[, i - 1], param$A, py[, I],PACKAGE = "HMMcopy")
+        output <- .Call("forward_backward", piG[, i - 1], A, py[, I],PACKAGE = "HMMcopy")
         rho[, I] <- output$rho
         loglik[i] <- loglik[i] + output$loglik
         Zcounts <- Zcounts + t(colSums(aperm(output$xi, c(3, 2, 1))))
@@ -143,18 +147,19 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
       ptm.em <- proc.time()
       output <- estimateTParamsMap(copy[chrInd, ], n[, i - 1], sp[, i - 1], phi[, i - 1], 
                                 lambdas[, , i - 1], piG[, i - 1], A, param,
-                                rho[, chrInd], Zcounts, 
+                                rho[, chrInd], Zcounts, loglik[i],
                                 estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
                                 estimatePrecision = estimatePrecision, estimateTransition = estimateTransition,
                                 estimateInitDist = estimateInitDist, estimateSubclone = estimateSubclone)
       
       lambdas[, , i] <- output$lambda
+      lambdasKS <- as.matrix(na.omit(expand.grid(as.data.frame(lambdas[, , i]))))
       if (verbose == TRUE) {
         
         for (s in 1:S){
           message("Sample", s, " n=", signif(output$n[s], digits = 4), ", sp=", signif(output$sp[s], digits = 4), 
                   ", phi=", signif(output$phi[s], digits = 4), 
-                  ", lambda=", paste0(signif(output$lambda[, s], digits=5), collapse = ","),
+                  ", lambda=", paste0(signif(output$lambda, digits=5), collapse = ","),
                   ", F=", signif(output$F, digits=4))
         }     
       }
@@ -203,7 +208,7 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
     }
     if ((abs(loglik[i] - loglik[i - 1]) / abs(loglik[i])) < likChangeConvergence){#} && loglik[i] > loglik[i - 1]) {
       message("runEM iter", i-1, " EM Converged")
-      converged = 0
+      converged = 1
     }
     if (loglik[i] < loglik[i - 1]){
       #message("LIKELIHOOD DECREASED!!!")
@@ -381,6 +386,7 @@ getNormLik <- function(copy, mus, varsKS, sw){
     }
     probs <- apply(y, 1, prod)
   }))
+  py[is.na(py)] <- 1
   return(py)
 }
 
@@ -424,7 +430,7 @@ invWishartpdflog <- function(covar, psi, nu){
 }
 
 estimateTParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_prev, A_prev, 
-                              params, rho, Zcounts, 
+                              params, rho, Zcounts, loglik,
                               estimateNormal = TRUE, estimatePloidy = TRUE,
                               estimatePrecision = TRUE, estimateInitDist = TRUE, 
                               estimateTransition = TRUE, estimateSubclone = TRUE,
@@ -443,6 +449,7 @@ estimateTParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_pre
   n_hat <- n_prev
   sp_hat <- sp_prev
   phi_hat <- phi_prev
+  lambda_prev <- na.omit(lambda_prev)
   lambda_hat <- lambda_prev
   pi_hat <- pi_prev
   A_hat <- A_prev
@@ -464,7 +471,7 @@ estimateTParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_pre
     suppressWarnings(
       estNorm <- optim(n_prev, fn = completeLikelihoodFun, pType = rep("n", S), n = n_prev, sp = sp_prev, phi = phi_prev, 
                        lambda = lambda_prev, piG = pi_hat, A = A_hat,
-                       params = params, D = D, rho = rho, Zcounts = Zcounts, 
+                       params = params, D = D, rho = rho, Zcounts = Zcounts, lik = loglik,
                        estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
                        estimatePrecision = estimatePrecision, estimateInitDist = estimateInitDist,
                        estimateTransition = estimateTransition, estimateSubclone = estimateSubclone,
@@ -479,7 +486,7 @@ estimateTParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_pre
     suppressWarnings(
       estSubclone <- optim(sp_prev, fn = completeLikelihoodFun, pType = rep("sp", S), n = n_hat, sp = sp_prev, 
                            phi = phi_prev, lambda = lambda_prev, piG = pi_hat, A = A_hat,
-                           params = params, D = D, rho = rho, Zcounts = Zcounts, 
+                           params = params, D = D, rho = rho, Zcounts = Zcounts, lik = loglik,
                            estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
                            estimatePrecision = estimatePrecision, estimateInitDist = estimateInitDist,
                            estimateTransition = estimateTransition, estimateSubclone = estimateSubclone,
@@ -494,7 +501,7 @@ estimateTParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_pre
     suppressWarnings(
       estPhi <- optim(phi_prev, fn = completeLikelihoodFun, pType = rep("phi", length(phi_prev)), n = n_hat, sp = sp_hat, 
                       phi = phi_prev, lambda = lambda_prev, piG = pi_hat, A = A_hat,
-                      params = params, D = D, rho = rho, Zcounts = Zcounts, 
+                      params = params, D = D, rho = rho, Zcounts = Zcounts, lik = loglik,
                       estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
                       estimatePrecision = estimatePrecision, estimateInitDist = estimateInitDist,
                       estimateTransition = estimateTransition, estimateSubclone = estimateSubclone,
@@ -509,7 +516,7 @@ estimateTParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_pre
     suppressWarnings(
       estLambda <- optim(c(lambda_prev), fn = completeLikelihoodFun, pType = rep("lambda", K*S), n = n_hat, sp = sp_hat,
                          phi = phi_hat, lambda = lambda_prev, piG = pi_hat, A = A_hat,
-                         params = params, D = D, rho = rho, Zcounts = Zcounts, 
+                         params = params, D = D, rho = rho, Zcounts = Zcounts, lik = loglik,
                          estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
                          estimatePrecision = estimatePrecision, estimateInitDist = estimateInitDist,
                          estimateTransition = estimateTransition, estimateSubclone = estimateSubclone,
@@ -710,7 +717,9 @@ varUpdateEqn <- function(n, sp, phi, jointStates, jointCNstates, jointSCstatus, 
   # }
   # term1 <- term1 - 2 * betaVar
   # term2 <- term2 - 2 * (alphaVar + 1)
-  term1 <- c - 2*b*mus + a*mus^2 + 2*betaVar
+  #term1 <- c - 2*b*mus + a*mus^2 + 2*betaVar
+  d <- b/a
+  term1 <- c - 2*b*d + a*d^2 + 2*betaVar
   term2 <- a + 2*(alphaVar + 1)
   var_hat <- term1 / term2
   return(var_hat)
@@ -765,7 +774,7 @@ stLikelihood <- function(n, sp, phi, lambda, params, D, rho){
 ## length of x will depend on which pararmeters are being estimated
 ## x values should be same as n, phi, lambda, pi, but may not necessarily
 ## include all of those variables
-completeLikelihoodFun <- function(x, pType, n, sp, phi, lambda, piG, A, params, D, rho, Zcounts,
+completeLikelihoodFun <- function(x, pType, n, sp, phi, lambda, piG, A, params, D, rho, Zcounts, lik,
                                   estimateNormal = TRUE, estimatePloidy = TRUE,
                                   estimatePrecision = TRUE, estimateTransition = FALSE,
                                   estimateInitDist = TRUE, estimateSubclone = TRUE){
@@ -774,7 +783,7 @@ completeLikelihoodFun <- function(x, pType, n, sp, phi, lambda, piG, A, params, 
   S <- params$numberSamples
   K <- length(params$ct)
   
-  lambda <- matrix(lambda, ncol = S, byrow = FALSE)
+  lambda <- na.omit(matrix(lambda, ncol = S, byrow = FALSE))
   
   if (estimatePrecision && sum(pType == "lambda") > 0){
     lambda <- matrix(x[pType == "lambda"], ncol = S, byrow = FALSE)
@@ -822,6 +831,7 @@ priorProbs <- function(n, sp, phi, lambda, var, piG, A, params,
   if (estimateTransition){
     priorA <- sapply(1:KS, function(ks){
       dirichletpdflog(A[ks, ], params$dirPrior[ks, ])
+      #dirichletpdflog(params$A_prior[ks, ], A[ks, ])
     })
   }
   priorA <- sum(priorA)
@@ -843,14 +853,14 @@ priorProbs <- function(n, sp, phi, lambda, var, piG, A, params,
     if (estimateVar){
       for (s in 1:S){
         priorVar <- priorVar + 
-          sum(invgammapdflog(as.data.frame(var[, s]), params$alphaVar[, s], params$betaVar[s]))
+          sum(invgammapdflog(as.data.frame(var[, s]), params$alphaVar[, s], params$betaVar[s]), na.rm = TRUE)
       }
     }
   }else{ # param$likModel == "t"
     if (estimatePrecision){
       for (s in 1:S){
         priorLambda <- priorLambda + 
-          sum(gammapdflog(as.data.frame(lambda)[, s], params$alphaLambda, params$betaLambda[, s]))
+          sum(gammapdflog(as.data.frame(lambda)[, s], params$alphaLambda[s], params$betaLambda[, s]), na.rm = TRUE)
       }
       priorLambda <- as.numeric(priorLambda)
     }
@@ -879,11 +889,10 @@ estimatePrecisionParamMap <- function(lambda, n, phi, params, D, rho){
 
 estimateMixWeightsParamMap <- function(rho, kappa) {
   K <- nrow(rho)
-  #pi <- (rho[, 1] + kappa - 1) / (sum(rho[, 1]) + sum(kappa) - K)
-  pi <- (rowSums(rho, na.rm = TRUE) + kappa - 1) / 
-    #	(ncol(rho) + sum(kappa) - K)
-    (sum(rowSums(rho, na.rm = TRUE)) + sum(kappa) - K)
-  
+  pi <- (rho[, 1] + kappa - 1) #/ (sum(rho[, 1]) + sum(kappa) - K)
+  pi <- pi / sum(pi)
+  #pi <- (rowSums(rho, na.rm = TRUE) + kappa - 1) / 
+  #  (sum(rowSums(rho, na.rm = TRUE)) + sum(kappa) - K)
   return(pi)
 } 
 

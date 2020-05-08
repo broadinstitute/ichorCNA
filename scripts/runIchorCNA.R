@@ -29,6 +29,7 @@ option_list <- list(
   make_option(c("--rmCentromereFlankLength"), type="numeric", default=1e5, help="Length of region flanking centromere to remove. Default: [%default]"),
   make_option(c("--normal"), type="character", default="0.5", help = "Initial normal contamination; can be more than one value if additional normal initializations are desired. Default: [%default]"),
   make_option(c("--scStates"), type="character", default="NULL", help = "Subclonal states to consider. Default: [%default]"),
+  make_option(c("--scPenalty"), type="numeric", default=0.1, help = "Penalty for subclonal state transitions. 0.1 penalizes subclonal states by ~10%. Default: [%default]"),
   make_option(c("--normal2IgnoreSC"), type="numeric", default=1.0, help="Ignore subclonal analysis when normal proportion is >= this value. Default: [%default]"),
   make_option(c("--coverage"), type="numeric", default=NULL, help = "PICARD sequencing coverage. Default: [%default]"),
   make_option(c("--likModel"), type="character", default="t", help="Likelihood model to use. \"t\" or \"gaussian\". Use \"gaussian\" for faster runtimes. Default: [%default]"),
@@ -54,7 +55,7 @@ option_list <- list(
   make_option(c("--includeHOMD"), type="logical", default=FALSE, help="If FALSE, then exclude HOMD state. Useful when using large bins (e.g. 1Mb). Default: [%default]"),
   make_option(c("--txnE"), type="numeric", default=0.9999999, help = "Self-transition probability. Increase to decrease number of segments. Default: [%default]"),
   make_option(c("--txnStrength"), type="numeric", default=1e7, help = "Transition pseudo-counts. Exponent should be the same as the number of decimal places of --txnE. Default: [%default]"),
-  	make_option(c("--plotFileType"), type="character", default="pdf", help = "File format for output plots. Default: [%default]"),
+  make_option(c("--plotFileType"), type="character", default="pdf", help = "File format for output plots. Default: [%default]"),
 	make_option(c("--plotYLim"), type="character", default="c(-2,2)", help = "ylim to use for chromosome plots. Default: [%default]"),
   make_option(c("--outDir"), type="character", default="./", help = "Output Directory. Default: [%default]"),
   make_option(c("--libdir"), type = "character", default=NULL, help = "Script library path. Usually exclude this argument unless custom modifications have been made to the ichorCNA R package code and the user would like to source those R files. Default: [%default]")
@@ -84,6 +85,7 @@ minMapScore <- opt$minMapScore
 flankLength <- opt$rmCentromereFlankLength
 normal <- eval(parse(text = opt$normal))
 scStates <- eval(parse(text = opt$scStates))
+subclone.penalty <- opt$scPenalty
 likModel <- opt$likModel
 lambda <- eval(parse(text = opt$lambda))
 lambdaScaleHyperParam <- opt$lambdaScaleHyperParam
@@ -103,7 +105,7 @@ normalizeMaleX <- as.logical(opt$normalizeMaleX)
 includeHOMD <- as.logical(opt$includeHOMD)
 fracReadsInChrYForMale <- opt$fracReadsInChrYForMale
 chrXMedianForMale <- -0.1
-normalIgnoreSC <- opt$normal2IgnoreSC
+normal2IgnoreSC <- opt$normal2IgnoreSC
 outDir <- opt$outDir
 libdir <- opt$libdir
 plotFileType <- opt$plotFileType
@@ -267,8 +269,8 @@ numCombinations <- (length(normal) * length(ploidy)) ^ S
 loglik <- as.data.frame(matrix(NA, nrow = numCombinations, ncol = 7, 
                  dimnames = list(c(), c("n_0", "phi_0", "n_est", "phi_est", 
                  												"Frac_genome_subclonal", "Frac_CNA_subclonal", "loglik"))))
-fracGenomeSub <- as.data.frame(matrix(NA, nrow = numCombinations, ncol = 2))
-fracAltSub <- as.data.frame(matrix(NA, nrow = numCombinations, ncol = 2))
+fracGenomeSub <- as.data.frame(matrix(NA, nrow = numCombinations, ncol = S))
+fracAltSub <- as.data.frame(matrix(NA, nrow = numCombinations, ncol = S))
 normal.restarts <- expand.grid(rep(list(normal), S))
 #ploidy.restarts <- expand.grid(rep(list(ploidy), S))
 counter <- 1
@@ -283,40 +285,38 @@ for (i in 1:length(ploidy)){
     if (sum(n == 0.95 & p != 2) > 0) {
       next
     }
-    message("Running EM for normal=", n, ", ploidy=", p)
+    message("Running EM for normal=", paste(n, collapse=","), ", ploidy=", paste(p, collapse=","))
+    # if (!grepl("gauss", likModel, ignore.case = TRUE)){
+    #   likModel <- "Gaussian"
+    #   message("Switching to Gaussian likelihood model.")
+    # }
     
     logR <- as.data.frame(lapply(tumour_copy, function(x) { x$copy })) # NEED TO EXCLUDE CHR X #
     param <- getDefaultParameters(logR[valid & chrInd, , drop=F], n_0 = n, maxCN = maxCN, includeHOMD = includeHOMD, 
-                ct.sc=scStates, normalIgnoreSC = normalIgnoreSC, ploidy_0 = floor(p), 
-                e=txnE, e.same = 50, strength=txnStrength, likModel = likModel)
-    param$sw <- rep(1, S)
+                ct.sc=scStates, normal2IgnoreSC = normal2IgnoreSC, ploidy_0 = floor(p), 
+                e=txnE, e.subclone = subclone.penalty, e.sameState = 1, strength=txnStrength, likModel = likModel)
+    
     ############################################
     ######## CUSTOM PARAMETER SETTINGS #########
     ############################################
-    # 0.1x cfDNA #
-    # param$var <- param$var / 10
-    # param$var[param$ct >= 4, ] <- param$var[param$ct >= 4, ] * 1
-    # param$var[param$ct == max(param$ct), ] <- param$var[param$ct == max(param$ct), ] * 1
-    # param$var[param$ct.sc.status, ] <- param$var[param$ct.sc.status, ] * 1
-    
-    param$betaVar <- rep(2, length(param$ct))  
-    # param$alphaVar <- param$alphaVar * 10
-	  # param$alphaVar[param$jointCNstates >= 4, ] <- param$alphaVar[param$jointCNstates >= 4, ] / 5
-    # param$alphaVar[param$jointCNstates == max(param$jointCNstates), ] <- param$alphaVar[param$jointCNstates == max(param$jointCNstates), ] / 15
-    if (numSamples > 1){ # for multi-sample analysis
+    #param$betaVar <- rep(2, length(param$ct))  
+     if (numSamples > 1){ # for multi-sample analysis
       for (m in 1:S){
         param$alphaVar[param$jointSCstatus[, m], m] <- param$alphaVar[param$jointSCstatus[, m], m] / 10
       }
     }else{
-        param$betaLambda[param$ct.sc.status] <- param$betaLambda[param$ct.sc.status] * 10
+        param$betaLambda[param$ct.sc.status] <- param$betaLambda[param$ct.sc.status] /2
+        param$alphaVar[param$ct.sc.status, 1] <- param$alphaVar[param$ct.sc.status, 1] *2
     }
 		#############################################
 		################ RUN HMM ####################
 		#############################################
     hmmResults.cor <- HMMsegment(tumour_copy, valid, dataType = "copy", 
-                                 param = param, chrTrain = chrTrain, maxiter = 20,
-                                 estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
-                                 estimateSubclone = estimateScPrevalence, verbose = TRUE)
+                                 param = param, chrTrain = chrTrain, maxiter = 100,
+                                 estimateNormal = estimateNormal, estimatePloidy = estimatePloidy, 
+                                 estimatePrecision = TRUE, estimateVar = TRUE, 
+                                 estimateSubclone = estimateScPrevalence, estimateTransition = TRUE,
+                                 estimateInitDist = TRUE, verbose = TRUE)
 
     for (s in 1:numSamples){
   		iter <- hmmResults.cor$results$iter
@@ -337,7 +337,7 @@ for (i in 1:length(ploidy)){
   		segsS <- segsS[segsS$chr %in% chrTrain, ]
   		segAltInd <- which(segsS$event != "NEUT")
   		maxBinLength = -Inf
-  		if (sum(segAltInd) > 0){
+  		if (length(segAltInd) > 0){
   			maxInd <- which.max(segsS$end[segAltInd] - segsS$start[segAltInd] + 1)
   			maxSegRD <- GRanges(seqnames=segsS$chr[segAltInd[maxInd]], 
   								ranges=IRanges(start=segsS$start[segAltInd[maxInd]], end=segsS$end[segAltInd[maxInd]]))
@@ -355,8 +355,8 @@ for (i in 1:length(ploidy)){
       ## plot solution ##
       mainName[[s]] <- c(mainName[[s]], paste0("Solution: ", counter, ", Sample: ", id, ", n: ", n[s], ", p: ", p[s], 
         ", log likelihood: ", signif(hmmResults.cor$results$loglik[hmmResults.cor$results$iter], digits = 4)))
-      ## plot individual samples if only single-sample analysis
-      if (numSamples == 1){
+      ## plot individual samples 
+      if (numSamples == 1){ # if only single-sample analysis
         outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide_", "n", n[s], "-p", p[s])      
         plotGWSolution(hmmResults.cor, s=s, outPlotFile=outPlotFile, plotFileType=plotFileType, 
               logR.column = "logR", call.column = "event",
@@ -410,6 +410,7 @@ if (estimateScPrevalence){ ## sort but excluding solutions with too large % subc
 
 ## print combined PDF of all solutions
 #new loop by order of solutions (ind)
+# single sample analysis
 for (s in 1:numSamples){
   id <- names(hmmResults.cor$cna)[s]
   outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide_all_sols")
@@ -430,7 +431,31 @@ for (s in 1:numSamples){
                        turnDevOn = turnDevOn, turnDevOff = turnDevOff, main=mainName[[s]][ind[i]])
   }
 }
+# double sample analysis
+if (numSamples > 1){
+  outPlotFile <- paste0(outDir, "/GenomeWide_all_sols_multiSample")
+  if (plotFileType == "png"){ 
+    outPlotFile <- paste0(outPlotFile, ".png")
+    png(outPlotFile,width=20,height=numSamples*6,units="in",res=300)
+   }else{
+    outPlotFile <- paste0(outPlotFile, ".pdf")
+    pdf(outPlotFile,width=20,height=numSamples*6)
+  } 
+  for (i in 1:length(ind)) {
+    hmmResults.cor <- results[[ind[i]]]
+    par(mfrow=c(numSamples, 1))
+    for (s in 1:numSamples){
+      plotGWSolution(hmmResults.cor, s=s, outPlotFile=outPlotFile, plotFileType="pdf", 
+                       logR.column = "logR", call.column = "event",
+                       plotYLim=plotYLim, estimateScPrevalence=estimateScPrevalence, 
+                       seqinfo = seqinfo,
+                       turnDevOn = FALSE, turnDevOff = FALSE, main=mainName[[s]][ind[i]])
+    }
+  }
+  dev.off()
+}
 
+## output text files 
 hmmResults.cor <- results[[ind[1]]]
 hmmResults.cor$results$loglik <- as.data.frame(loglik)
 hmmResults.cor$results$gender <- gender$gender
