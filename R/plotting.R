@@ -114,7 +114,6 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir, counts,
                       after = "cor.map", fit = NULL, xlab = "Mappability Score",
                       pch = 20, cex = 0.5, mfrow = NULL),
     silent = TRUE)
-
     try(plotCovarBias(counts[[s]], covar = "repTime", before = "cor.map", 
                       after = "cor.rep", fit = "rep.fit", xlab = "Replication Timing", 
                       pch = 20, cex = 0.5, mfrow = NULL),
@@ -130,7 +129,7 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir, counts,
               jointStates = hmmResults.cor$results$param$jointStates[, s],
               likModel = likModel,
               subclone = hmmResults.cor$results$param$ct.sc.status,
-              nu = hmmResults.cor$results$param$nu, copy.states = 1:maxCN)
+              nu = hmmResults.cor$results$param$nu, copy.states = param$ct)
     dev.off()
   }
 }
@@ -139,8 +138,9 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir, counts,
 plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf", 
 						   logR.column = "logR", call.column = "event",
 						   seqinfo = NULL, plotSegs = TRUE, 
-                           plotYLim=c(-2,2), estimateScPrevalence, main,
-                           turnDevOn=TRUE, turnDevOff=TRUE){
+               cex = 0.5, cex.axis = 1.5, cex.lab=1.5, cex.text=1.5,
+               plotYLim=c(-2,2), estimateScPrevalence, main=NULL, spacing=4,
+               turnDevOn=TRUE, turnDevOff=TRUE){
     ## plot genome wide figures for each solution ##
     iter <- hmmResults.cor$results$iter
     ploidyEst <- hmmResults.cor$results$phi[s, iter]
@@ -156,8 +156,14 @@ plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf",
       }else{
           outPlotFile <- paste0(outPlotFile, ".pdf")
           pdf(outPlotFile,width=20,height=6)
-      }	
+      } 
     }
+    if (par()$mfrow[1] > 1){ # more than one plot in figure
+      lines <- c(0.25, -1.5, -3.25)
+    }else{       
+      lines <- c(0.25, -1, -2.25)
+    }
+    #par(oma=c(0, 0, 2, 0))
     if (plotSegs){
     	segsToUse <- hmmResults.cor$results$segs[[s]]
     }else{
@@ -166,12 +172,14 @@ plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf",
     plotCNlogRByChr(hmmResults.cor$cna[[s]], segs = segsToUse, plotSegs=plotSegs, seqinfo=seqinfo,
                     param = hmmResults.cor$results$param, chr=NULL,
                     logR.column = logR.column, call.column = call.column,  
-                    ploidy = ploidyAll, cytoBand=T, yrange=plotYLim, main=main)  #ylim for plot
+                    cex = cex, cex.axis = cex.axis, cex.lab=cex.lab,
+                    ploidy = ploidyAll, cytoBand=T, yrange=plotYLim, spacing=spacing, main=NULL)  #ylim for plot
     annotStr <- paste0("Tumor Fraction: ", signif(purityEst, digits=4), ", Ploidy: ", signif(ploidyEst, digits=3))
     if (!is.null(coverage)){
       annotStr <- paste0(annotStr, ", Coverage: ", signif(coverage, digits=2))
     }
-    mtext(line=-1, annotStr, cex=1.5)
+    mtext(line=lines[1], main, cex=cex.text)
+    mtext(line=lines[2], annotStr, cex=cex.text)
     if (estimateScPrevalence){
       sampleBins <- hmmResults.cor$cna[[s]]
       #sampleBins <- sampleBins[sampleBins$chr %in% chrTrain, ]
@@ -182,7 +190,7 @@ plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf",
         annotSubStr <- paste0("Subclone Fraction: ", signif(subclone, digits=3), 
                               ", Frac. Genome Subclonal: ", format(round(fracGenomeSub, 2), nsmall = 2),
                               ", Frac. CNA Subclonal: ", format(round(fracCNAsub, 2), nsmall = 2))
-        mtext(line=-2, annotSubStr, cex=1.5)
+        mtext(line=lines[3], annotSubStr, cex=cex.text)
       }
     }
     if (turnDevOff){
@@ -196,14 +204,17 @@ plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf",
 #alphaVal = [0,1]
 #geneAnnot is a dataframe with 4 columns: geneSymbol, chr, start, stop
 #spacing is the distance between each track
-plotCNlogRByChr <- function(dataIn, segs, param = NULL, logR.column = "logR", call.column = "event", plotSegs = TRUE, seqinfo=NULL, chr=NULL, ploidy = NULL, geneAnnot=NULL, yrange=c(-4,6), xlim=NULL, xaxt = "n", cex = 0.5, gene.cex = 0.5, plot.title = NULL, spacing=4, cytoBand=T, alphaVal=1, main){
+plotCNlogRByChr <- function(dataIn, segs, param = NULL, logR.column = "logR", 
+  call.column = "event", plotSegs = TRUE, seqinfo=NULL, chr=NULL, ploidy = NULL, 
+  geneAnnot=NULL, yrange=c(-4,6), xlim=NULL, xaxt = "n", cex = 0.5, cex.axis = 1.5, cex.lab=1.5, gene.cex = 0.5, 
+  plot.title = NULL, spacing=4, cytoBand=T, alphaVal=1, main){
   #color coding
   alphaVal <- ceiling(alphaVal * 255); class(alphaVal) = "hexmode"
   alphaSubcloneVal <- ceiling(alphaVal / 2 * 255); class(alphaVal) = "hexmode"
-  cnCol <- c("#00FF00","#006400","#0000FF","#8B0000",rep("#FF0000", 26))
+  cnCol <- c("#00FF00","#006400","#0000FF","#8B0000",rep("#FF0000", 1001))
   subcloneCol <- c("#00FF00")
   cnCol <- paste(cnCol,alphaVal,sep="")
-  names(cnCol) <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP",paste0(rep("HLAMP", 8), 2:25))
+  names(cnCol) <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP",paste0("HLAMP", 2:1000))
 #  segCol <- cnCol
 #  ## add in colors for subclone if param provided
 #  if (!is.null(param)){
@@ -228,7 +239,7 @@ plotCNlogRByChr <- function(dataIn, segs, param = NULL, logR.column = "logR", ca
       
       #plot the data
       #if (outfile!=""){ pdf(outfile,width=10,height=6) }
-      par(mar=c(spacing,8,4,2))
+      par(mar=c(spacing,8,spacing,2))
       #par(xpd=NA)
       coord <- (as.numeric(dataByChr[,"end"]) + as.numeric(dataByChr[,"start"]))/2
       if (is.null(xlim)){
@@ -242,7 +253,7 @@ plotCNlogRByChr <- function(dataIn, segs, param = NULL, logR.column = "logR", ca
       plot(coord,as.numeric(dataByChr[, logR.column]),col=cnCol[dataByChr[, call.column]],
            pch=16, ylim=yrange,
            xlim=xlim, xaxt = xaxt, xlab="",ylab="Copy Number (log2 ratio)",
-           cex.lab=1.5,cex.axis=1.5, cex=cex,las=1)
+           cex.lab=cex.lab,cex.axis=cex.axis, cex=cex,las=1)
       title(plot.title, line = 1.25, xpd=NA, cex.main=1.5)
       ## plot centre line ##
       lines(c(1,as.numeric(dataByChr[dim(dataByChr)[1],3])),rep(0,2),type="l",col="grey",lwd=0.75)
@@ -286,7 +297,7 @@ plotCNlogRByChr <- function(dataIn, segs, param = NULL, logR.column = "logR", ca
          col=cnCol[as.character(dataIn[,call.column])],pch=16,xaxt="n", ylim=yrange,
          xlim=c(1,as.numeric(coord$posns[length(coord$posns)])),
          xlab="",ylab="Copy Number (log2 ratio)",
-         cex.lab=1.5,cex.axis=1.5,cex=0.5,las=1,bty="n",
+         cex.lab=cex.lab,cex.axis=cex.axis,cex.main=1.5,cex=cex,las=1,bty="n",
          #main=dataIn[1,"sample"])
          main=main)
     #plot segments
@@ -395,7 +406,7 @@ plotCorrectionGenomeWide <- function(correctOutput, seqinfo = NULL, chr = NULL, 
 ##################################################
 ### HELPER FUNCTION TO GET GENOME-WIDE COORDS ####
 ##################################################
-plotChrLines <- function(chrs,chrBkpt,yrange){
+plotChrLines <- function(chrs,chrBkpt,yrange, cex.axis=1.5){
   #plot vertical chromosome lines
   for (j in 1:length(chrBkpt)){
     lines(rep(chrBkpt[j],2),yrange,type="l",lty=2,col="black",lwd=0.75)
@@ -407,7 +418,7 @@ plotChrLines <- function(chrs,chrBkpt,yrange){
   	seqlevelsStyle(chrs) <- "NCBI"
   }
   chrs <- sortSeqlevels(unique(chrs))
-  axis(side=1,at=mid,labels=c(chrs),cex.axis=1.5,tick=FALSE)
+  axis(side=1,at=mid,labels=c(chrs),cex.axis=cex.axis,tick=FALSE)
 }
 
 # getGenomeWidePositions <- function(chrs,posns){  
@@ -480,16 +491,13 @@ getGenomeWidePositions <- function(chrs, posns, seqinfo = NULL) {
 plotParam <- function(mus, lambdas, nu, vars = NULL, likModel = "t", 
                       jointStates = NULL, subclone = NULL, copy.states = 0:6, ...) {
   #cols <- stateCols()
-  cols <- c("#00FF00","#006400","#0000FF","#8B0000",rep("#FF0000", 10))
+  cols <- c("#00FF00","#006400","#0000FF","#8B0000",rep("#FF0000", 100))
   cols <- cols[copy.states + 1]
-  #last <- ncol(mus)
-  #lastmu <- mus[, last]
-  #lastlambda <- lambdas[, last]
   
   domain <- (max(mus) - min(mus)) / 2
   left <- min(mus) - domain
   right <- max(mus) + domain
-  x = seq(left * 10, right * 10, by = 0.01);
+  x = seq(min(-0.2, left * 2), max(0.2, right * 2), by = 0.01);
   height = 0
   K <- length(mus)
   z <- vector('list', K)
@@ -499,27 +507,17 @@ plotParam <- function(mus, lambdas, nu, vars = NULL, likModel = "t",
       ylab <- "Student-t Density"
     }else if (grepl("gauss", likModel, ignore.case = TRUE)){
       if (is.null(var) || is.null(jointStates)){
-        stop("plotParam: likModel is Gaussian but var and/or jointStates is not provided.")
+        stop("plotParam: likModel is Gaussian but var and/or jointStates are not provided.")
       }
-      varsToUse <- max(vars[jointStates == state])
+      varsToUse <- mean(vars[jointStates == state])
       z[[state]] <- normalpdf(x, mus[state], varsToUse)
       ylab <- "Gaussian Density"
     }
   }
   height <- max(unlist(z))
   
-  plot(c(left, right), c(0, height), type = "n", xlab = "Normalized Log2 Ratios",
-       ylab = ylab, ...);
-  
-  z <- vector('list', K)
-  for(state in 1:K) {
-    if (likModel == "t"){
-      z[[state]] <- tdistPDF(x, mus[state], lambdas[state], nu);
-    }else if (grepl("gauss", likModel, ignore.case = TRUE)){
-      varsToUse <- mean(vars[jointStates == state])
-      z[[state]] <- normalpdf(x, mus[state], varsToUse)
-    }
-  }
+  plot(c(min(x), max(x)), c(0, height), type = "n", xlab = "Normalized Log2 Ratios",
+       ylab = ylab, ...)
   
   for (state in 1:K){
     if (subclone[state]){ # subclonal

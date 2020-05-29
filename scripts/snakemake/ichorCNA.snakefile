@@ -68,11 +68,12 @@ rule ichorCNA:
 		txnStrength=config["ichorCNA_txnStrength"],
 		plotFileType=config["ichorCNA_plotFileType"],
 		plotYlim=config["ichorCNA_plotYlim"],
-		libdir=config["ichorCNA_libdir"]
+		libdir=config["ichorCNA_libdir"],
+		cores=config["ichorCNA_numCores"]
 	resources:
 		mem=4
 	log:
 		"logs/ichorCNA/{tumor}.log"	
 	shell:
-		"Rscript {params.rscript} --id {params.id} --libdir {params.libdir} --WIG {input.tum} --gcWig {params.gcwig} --mapWig {params.mapwig} --repTimeWig {params.repTimeWig} --sex {params.sex} --normalPanel {params.normalpanel} --ploidy \"{params.ploidy}\" --normal \"{params.normal}\" --maxCN {params.maxCN} --includeHOMD {params.includeHOMD} --chrs \"{params.chrs}\" --chrTrain \"{params.chrTrain}\" --genomeStyle {params.genomeStyle} --genomeBuild {params.genomeBuild} --estimateNormal {params.estimateNormal} --estimatePloidy {params.estimatePloidy} --estimateScPrevalence {params.estimateClonality} --scStates \"{params.scStates}\" --likModel {params.likModel} --centromere {params.centromere} --exons.bed {params.exons} --txnE {params.txnE} --txnStrength {params.txnStrength} --minMapScore {params.minMapScore} --fracReadsInChrYForMale {params.fracReadsChrYMale} --maxFracGenomeSubclone {params.maxFracGenomeSubclone} --maxFracCNASubclone {params.maxFracCNASubclone} --normal2IgnoreSC {params.normal2IgnoreSC} --scPenalty {params.scPenalty} --plotFileType {params.plotFileType} --plotYLim \"{params.plotYlim}\" --outDir {params.outDir} > {log} 2> {log}"
+		"Rscript {params.rscript} --id {params.id} --libdir {params.libdir} --cores {params.cores} --WIG {input.tum} --gcWig {params.gcwig} --mapWig {params.mapwig} --repTimeWig {params.repTimeWig} --sex {params.sex} --normalPanel {params.normalpanel} --ploidy \"{params.ploidy}\" --normal \"{params.normal}\" --maxCN {params.maxCN} --includeHOMD {params.includeHOMD} --chrs \"{params.chrs}\" --chrTrain \"{params.chrTrain}\" --genomeStyle {params.genomeStyle} --genomeBuild {params.genomeBuild} --estimateNormal {params.estimateNormal} --estimatePloidy {params.estimatePloidy} --estimateScPrevalence {params.estimateClonality} --scStates \"{params.scStates}\" --likModel {params.likModel} --centromere {params.centromere} --exons.bed {params.exons} --txnE {params.txnE} --txnStrength {params.txnStrength} --minMapScore {params.minMapScore} --fracReadsInChrYForMale {params.fracReadsChrYMale} --maxFracGenomeSubclone {params.maxFracGenomeSubclone} --maxFracCNASubclone {params.maxFracCNASubclone} --normal2IgnoreSC {params.normal2IgnoreSC} --scPenalty {params.scPenalty} --plotFileType {params.plotFileType} --plotYLim \"{params.plotYlim}\" --outDir {params.outDir} > {log} 2> {log}"
 

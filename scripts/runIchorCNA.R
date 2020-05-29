@@ -6,7 +6,7 @@
 #
 # author: Justin Rhoades, Broad Institute
 #
-# ichorCNA website: https://github.com/broadinstitute/ichorCNA
+# ichorCNA website: https://github.com/GavinHaLab/ichorCNA
 # date:   January 6, 2020
 #
 # description: Hidden Markov model (HMM) to analyze Ultra-low pass whole genome sequencing (ULP-WGS) data.
@@ -28,6 +28,7 @@ option_list <- list(
   make_option(c("--minMapScore"), type = "numeric", default=0.9, help="Include bins with a minimum mappability score of this value. Default: [%default]."),
   make_option(c("--rmCentromereFlankLength"), type="numeric", default=1e5, help="Length of region flanking centromere to remove. Default: [%default]"),
   make_option(c("--normal"), type="character", default="0.5", help = "Initial normal contamination; can be more than one value if additional normal initializations are desired. Default: [%default]"),
+  make_option(c("--normal.init"), type="character", default="c(0.5, 0.5)", help = "Specific initialization of normal contamination for multiple samples. Default: [%default]"),
   make_option(c("--scStates"), type="character", default="NULL", help = "Subclonal states to consider. Default: [%default]"),
   make_option(c("--scPenalty"), type="numeric", default=0.1, help = "Penalty for subclonal state transitions. 0.1 penalizes subclonal states by ~10%. Default: [%default]"),
   make_option(c("--normal2IgnoreSC"), type="numeric", default=1.0, help="Ignore subclonal analysis when normal proportion is >= this value. Default: [%default]"),
@@ -55,10 +56,12 @@ option_list <- list(
   make_option(c("--includeHOMD"), type="logical", default=FALSE, help="If FALSE, then exclude HOMD state. Useful when using large bins (e.g. 1Mb). Default: [%default]"),
   make_option(c("--txnE"), type="numeric", default=0.9999999, help = "Self-transition probability. Increase to decrease number of segments. Default: [%default]"),
   make_option(c("--txnStrength"), type="numeric", default=1e7, help = "Transition pseudo-counts. Exponent should be the same as the number of decimal places of --txnE. Default: [%default]"),
+  make_option(c("--multSampleTxnStrength"), type="numeric", default=1, help="Strength of same state transition between multiple samples. Default: [%default]"),
   make_option(c("--plotFileType"), type="character", default="pdf", help = "File format for output plots. Default: [%default]"),
 	make_option(c("--plotYLim"), type="character", default="c(-2,2)", help = "ylim to use for chromosome plots. Default: [%default]"),
   make_option(c("--outDir"), type="character", default="./", help = "Output Directory. Default: [%default]"),
-  make_option(c("--libdir"), type = "character", default=NULL, help = "Script library path. Usually exclude this argument unless custom modifications have been made to the ichorCNA R package code and the user would like to source those R files. Default: [%default]")
+  make_option(c("--libdir"), type = "character", default=NULL, help = "Script library path. Usually exclude this argument unless custom modifications have been made to the ichorCNA R package code and the user would like to source those R files. Default: [%default]"),
+  make_option(c("--cores"), type="numeric", default = 1, help = "Number of cores to use for EM. Default: [%default]")
 )
 parseobj <- OptionParser(option_list=option_list)
 opt <- parse_args(parseobj)
@@ -68,8 +71,9 @@ options(scipen=0, stringsAsFactors=F)
 library(HMMcopy)
 library(GenomicRanges)
 library(GenomeInfoDb)
-options(stringsAsFactors=FALSE)
-options(bitmapType='cairo')
+library(foreach)
+library(doMC)
+options(stringsAsFactors=FALSE, bitmapType='cairo')
 
 patientID <- opt$id
 tumour_file <- opt$WIG
@@ -84,6 +88,7 @@ centromere <- opt$centromere
 minMapScore <- opt$minMapScore
 flankLength <- opt$rmCentromereFlankLength
 normal <- eval(parse(text = opt$normal))
+normal.init <- eval(parse(text = opt$normal.init))
 scStates <- eval(parse(text = opt$scStates))
 subclone.penalty <- opt$scPenalty
 likModel <- opt$likModel
@@ -101,6 +106,7 @@ coverage <- opt$coverage
 maxCN <- opt$maxCN
 txnE <- opt$txnE
 txnStrength <- opt$txnStrength
+multSampleTxnStrength <- opt$multSampleTxnStrength
 normalizeMaleX <- as.logical(opt$normalizeMaleX)
 includeHOMD <- as.logical(opt$includeHOMD)
 fracReadsInChrYForMale <- opt$fracReadsInChrYForMale
@@ -119,6 +125,7 @@ chrNormalize <- as.character(eval(parse(text=opt$chrNormalize)));
 seqlevelsStyle(chrs) <- genomeStyle
 seqlevelsStyle(chrNormalize) <- genomeStyle
 seqlevelsStyle(chrTrain) <- genomeStyle
+cores <- opt$cores 
 
 ## load ichorCNA library or source R scripts
 if (!is.null(libdir) && libdir != "None"){
@@ -262,6 +269,10 @@ if (length(tumour_copy) >= 2) {
 save.image(outImage)
 
 ### RUN HMM ###
+registerDoMC()
+options(cores = cores)
+message("ichorCNA: Using ", getDoParWorkers(), " cores.")
+
 ## store the results for different normal and ploidy solutions ##
 ptmTotalSolutions <- proc.time() # start total timer
 results <- list()
@@ -271,11 +282,19 @@ loglik <- as.data.frame(matrix(NA, nrow = numCombinations, ncol = 7,
                  												"Frac_genome_subclonal", "Frac_CNA_subclonal", "loglik"))))
 fracGenomeSub <- as.data.frame(matrix(NA, nrow = numCombinations, ncol = S))
 fracAltSub <- as.data.frame(matrix(NA, nrow = numCombinations, ncol = S))
+# prepare normal/ploidy restarts for different solutions
 normal.restarts <- expand.grid(rep(list(normal), S))
+if (!is.null(normal.init) && numSamples > 1){
+  normal.restarts <- unique(rbind(normal.restarts, normal.init))
+}
 #ploidy.restarts <- expand.grid(rep(list(ploidy), S))
 counter <- 1
 compNames <- rep(NA, nrow(loglik))
 mainName <- vector('list', S) #rep(NA, nrow(normal.restarts) * nrow(ploidy.restarts))
+if (numSamples > 1){
+  maxCN <- min(maxCN, 4)
+  message("Using maxCN=4")
+}
 #### restart for purity and ploidy values ####
 for (i in 1:length(ploidy)){
   p <- rep(ploidy[i], S)
@@ -292,31 +311,33 @@ for (i in 1:length(ploidy)){
     # }
     
     logR <- as.data.frame(lapply(tumour_copy, function(x) { x$copy })) # NEED TO EXCLUDE CHR X #
-    param <- getDefaultParameters(logR[valid & chrInd, , drop=F], n_0 = n, maxCN = maxCN, includeHOMD = includeHOMD, 
-                ct.sc=scStates, normal2IgnoreSC = normal2IgnoreSC, ploidy_0 = floor(p), 
-                e=txnE, e.subclone = subclone.penalty, e.sameState = 1, strength=txnStrength, likModel = likModel)
+    param <- getDefaultParameters(logR[valid & chrInd, , drop=F], n_0 = n, maxCN = maxCN, 
+      includeHOMD = includeHOMD, 
+      ct.sc=scStates, normal2IgnoreSC = normal2IgnoreSC, ploidy_0 = floor(p), 
+      e=txnE, e.subclone = subclone.penalty, e.sameState = multSampleTxnStrength, 
+      strength=txnStrength, likModel = likModel)
     
     ############################################
     ######## CUSTOM PARAMETER SETTINGS #########
     ############################################
     #param$betaVar <- rep(2, length(param$ct))  
-     if (numSamples > 1){ # for multi-sample analysis
-      for (m in 1:S){
-        param$alphaVar[param$jointSCstatus[, m], m] <- param$alphaVar[param$jointSCstatus[, m], m] / 10
-      }
-    }else{
-        param$betaLambda[param$ct.sc.status] <- param$betaLambda[param$ct.sc.status] /2
-        param$alphaVar[param$ct.sc.status, 1] <- param$alphaVar[param$ct.sc.status, 1] *2
-    }
+    # if (numSamples > 1){ # for multi-sample analysis
+    #   for (m in 1:S){
+    #     param$alphaVar[param$jointSCstatus[, m], m] <- param$alphaVar[param$jointSCstatus[, m], m] / 10
+    #   }
+    # }else{
+    #     param$betaLambda[param$ct.sc.status] <- param$betaLambda[param$ct.sc.status] /2
+    #     param$alphaVar[param$ct.sc.status, 1] <- param$alphaVar[param$ct.sc.status, 1] *2
+    # }
 		#############################################
 		################ RUN HMM ####################
 		#############################################
     hmmResults.cor <- HMMsegment(tumour_copy, valid, dataType = "copy", 
-                                 param = param, chrTrain = chrTrain, maxiter = 100,
+                                 param = param, chrTrain = chrTrain, maxiter = 20,
                                  estimateNormal = estimateNormal, estimatePloidy = estimatePloidy, 
                                  estimatePrecision = TRUE, estimateVar = TRUE, 
                                  estimateSubclone = estimateScPrevalence, estimateTransition = TRUE,
-                                 estimateInitDist = TRUE, verbose = TRUE)
+                                 estimateInitDist = TRUE, likChangeConvergence = 1e-4, verbose = TRUE)
 
     for (s in 1:numSamples){
   		iter <- hmmResults.cor$results$iter
@@ -327,7 +348,7 @@ for (i in 1:length(ploidy)){
      				segs = hmmResults.cor$results$segs[[s]],
       			purity = 1 - hmmResults.cor$results$n[s, iter], ploidy = hmmResults.cor$results$phi[s, iter],
       			cellPrev = 1 - hmmResults.cor$results$sp[s, iter],
-      			maxCNtoCorrect.autosomes = maxCN, maxCNtoCorrect.X = maxCN, minPurityToCorrect = 0.03,
+      			maxCNtoCorrect.autosomes = maxCN, maxCNtoCorrect.X = maxCN, minPurityToCorrect = 0.05,
       			gender = gender$gender, chrs = chrs, correctHOMD = includeHOMD)
   		hmmResults.cor$results$segs[[s]] <- correctedResults$segs
   	  hmmResults.cor$cna[[s]] <- correctedResults$cn
@@ -359,7 +380,7 @@ for (i in 1:length(ploidy)){
       if (numSamples == 1){ # if only single-sample analysis
         outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide_", "n", n[s], "-p", p[s])      
         plotGWSolution(hmmResults.cor, s=s, outPlotFile=outPlotFile, plotFileType=plotFileType, 
-              logR.column = "logR", call.column = "event",
+              logR.column = "logR", call.column = "Corrected_Call",
         			 plotYLim=plotYLim, estimateScPrevalence=estimateScPrevalence, seqinfo=seqinfo, main=mainName[[s]][counter])
       }
     }
@@ -391,6 +412,7 @@ save.image(outImage)
 #save(tumour_copy, results, loglik, file=paste0(outDir,"/",id,".RData"))
 
 ### SORT SOLUTIONS BY DECREASING LIKELIHOOD ###
+fracAltSub[is.nan(fracAltSub$V1), ] <- 0
 if (estimateScPrevalence){ ## sort but excluding solutions with too large % subclonal 
     if (numSamples > 1){
         fracInd <- which(rowSums(fracAltSub <= maxFracCNASubclone) == S &
@@ -410,7 +432,7 @@ if (estimateScPrevalence){ ## sort but excluding solutions with too large % subc
 
 ## print combined PDF of all solutions
 #new loop by order of solutions (ind)
-# single sample analysis
+# individual samples 
 for (s in 1:numSamples){
   id <- names(hmmResults.cor$cna)[s]
   outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide_all_sols")
@@ -425,15 +447,15 @@ for (s in 1:numSamples){
     	turnDevOff <- TRUE
     }
     plotGWSolution(hmmResults.cor, s=s, outPlotFile=outPlotFile, plotFileType="pdf", 
-                       logR.column = "logR", call.column = "event",
+                       logR.column = "logR", call.column = "Corrected_Call",
                        plotYLim=plotYLim, estimateScPrevalence=estimateScPrevalence, 
                        seqinfo = seqinfo,
                        turnDevOn = turnDevOn, turnDevOff = turnDevOff, main=mainName[[s]][ind[i]])
   }
 }
-# double sample analysis
+# multisample, combined plots
 if (numSamples > 1){
-  outPlotFile <- paste0(outDir, "/GenomeWide_all_sols_multiSample")
+  outPlotFile <- paste0(outDir, "/", patientID, "_all_sols_multiSample")
   if (plotFileType == "png"){ 
     outPlotFile <- paste0(outPlotFile, ".png")
     png(outPlotFile,width=20,height=numSamples*6,units="in",res=300)
@@ -446,9 +468,10 @@ if (numSamples > 1){
     par(mfrow=c(numSamples, 1))
     for (s in 1:numSamples){
       plotGWSolution(hmmResults.cor, s=s, outPlotFile=outPlotFile, plotFileType="pdf", 
-                       logR.column = "logR", call.column = "event",
+                       logR.column = "logR", call.column = "Corrected_Call",
                        plotYLim=plotYLim, estimateScPrevalence=estimateScPrevalence, 
-                       seqinfo = seqinfo,
+                       seqinfo = seqinfo, spacing = 4, 
+                       cex.text = 1.25, cex=0.5,
                        turnDevOn = FALSE, turnDevOff = FALSE, main=mainName[[s]][ind[i]])
     }
   }
@@ -470,7 +493,7 @@ outputParametersToFile(hmmResults.cor, file = outFile)
 
 ## plot solutions for all samples 
 plotSolutions(hmmResults.cor, tumour_copy, chrs, outDir, counts, numSamples=numSamples,
-              logR.column = "logR", call.column = "Corrected_Call", likModel = likModel,
+              logR.column = "logR", call.column = "event", likModel = likModel,
               plotFileType=plotFileType, plotYLim=plotYLim, seqinfo = seqinfo,
               estimateScPrevalence=estimateScPrevalence, maxCN=maxCN)
 

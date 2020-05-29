@@ -5,6 +5,7 @@ chrs:
 binSize:  1000000 # set window size to compute coverage
 
 ## ichorCNA params ##
+ichorCNA_numCores: 1
 ichorCNA_libdir: /path/to/git/software/ichorCNA
 # included in GitHub repo
 ichorCNA_rscript:  ../runIchorCNA.R

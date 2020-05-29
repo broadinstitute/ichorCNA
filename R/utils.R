@@ -17,7 +17,7 @@
 ####################################
 # updated for GRanges #
 keepChr <- function(tumour_reads, chrs = c(1:22,"X","Y")){	
-	tumour_reads <- keepSeqlevels(tumour_reads, chrs, pruning.mode="coarse")
+	tumour_reads <- keepSeqlevels(tumour_reads, chrs, pruning.mode="tidy")
 	sortSeqlevels(tumour_reads)
 	return(sort(tumour_reads))
 }
@@ -383,7 +383,7 @@ correctIntegerCN <- function(cn, segs, callColName = "event",
 	}
 	## correct log ratio and compute corrected CN
 	cellPrev.seg <- rep(1, nrow(segs))
-	cellPrev.seg[as.logical(segs$subclone.status)] <- cellPrev
+	cellPrev.seg[as.logical(segs$subclone.status)] <- 1 #cellPrev
 	segs$logR_Copy_Number <- logRbasedCN(segs[["median"]], purity, ploidy, cellPrev.seg, cn=2)
 	if (gender == "male" & length(chrXStr) > 0){ ## analyze chrX separately
 		ind.cnChrX <- which(segs$chr == chrXStr)
@@ -391,7 +391,7 @@ correctIntegerCN <- function(cn, segs, callColName = "event",
 	}
 
 	## assign copy number to use - Corrected_Copy_Number
-	# 1) ame ichorCNA calls for autosomes - no change in copy number
+	# 1) same ichorCNA calls for autosomes - initialize to no-change in copy number 
 	segs$Corrected_Copy_Number <- as.integer(segs$copy.number)
 	segs$Corrected_Call <- segs[[callColName]]
 
@@ -415,17 +415,28 @@ correctIntegerCN <- function(cn, segs, callColName = "event",
 		}
 		# 4) Re-adjust chrX copy number for males (females already handled above)
 		if (gender == "male" & length(chrXStr) > 0){
-		  if (!correctWholeChrXForMales){ # correct all of chrX for males
-		    ind.cn <- which(segs$chr == chrXStr)
-		  }else{ # only highest chrX CN
-			ind.cn <- which(segs$chr == chrXStr & 
-				(segs$copy.number >= maxCNtoCorrect.X | segs$logR_Copy_Number >= maxCNtoCorrect.X * 1.2))
-		  }
+			if (!correctWholeChrXForMales){ # correct all of chrX for males
+				ind.cn <- which(segs$chr == chrXStr)
+			}else{ # only highest chrX CN
+				ind.cn <- which(segs$chr == chrXStr & 
+					(segs$copy.number >= maxCNtoCorrect.X | segs$logR_Copy_Number >= maxCNtoCorrect.X * 1.2))
+			}
 			segs$Corrected_Copy_Number[ind.cn] <- as.integer(round(segs$logR_Copy_Number[ind.cn]))
 			segs$Corrected_Call[ind.cn] <- names[segs$Corrected_Copy_Number[ind.cn] + 2]
 			ind.change <- c(ind.change, ind.cn)
 		}
+
+		# 5) Adjust copy number for inconsistent logR and copy number prediction (e.g. opposite copy number direction)
+	    # mostly affects outliers, which are short or single point segments
+	    # since chrX for males have all data corrected, it will by default not be included in this anyway
+	    # chrX for females are treated as regular diploid chromosomes here
+	    ind.seg.oppCNA <- which(((round(segs$logR_Copy_Number) < ploidy & segs$Corrected_Copy_Number > ploidy) | 
+	    				 		 (round(segs$logR_Copy_Number) > ploidy & segs$Corrected_Copy_Number < ploidy)) & 
+	    				   	 	(abs(round(segs$logR_Copy_Number) - segs$Corrected_Copy_Number) > 2))
+	    segs$Corrected_Copy_Number[ind.seg.oppCNA] <- as.integer(round(segs$logR_Copy_Number[ind.seg.oppCNA]))
+	    ind.change <- unique(c(ind.change, ind.seg.oppCNA))
 	}
+
 	## adjust the bin level data ##
 	# 1) assign the original calls
 	cn$Corrected_Copy_Number <- as.integer(cn$copy.number)
@@ -462,6 +473,7 @@ correctIntegerCN <- function(cn, segs, callColName = "event",
 		# ind.homd <- which(cn$logR_Copy_Number <= 1/2^6 & cn$logR <= hetd.median - 2 * hetd.sd)
 		# cn$Corrected_Copy_Number[ind.homd] <- 0
 		# cn$Corrected_Call[ind.homd] <- "HOMD"
+
 	 }
 	 
 	return(list(cn = cn, segs = segs))

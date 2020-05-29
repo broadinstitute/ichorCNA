@@ -100,20 +100,49 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
     ptm <- proc.time()
     #if (verbose) { message(paste("runEM: EM iteration:", i, "Log likelihood:", loglik[i])) }
     i <- i + 1
-    
     ################ E-step ####################
     if (verbose) { message("runEM iter", i-1 , ": Expectation") }
-    Zcounts <- matrix(0, KS, KS)
-    for (j in 1:length(chrsI)) {
-      I <- intersect(chrsI[[j]], which(chrInd))
-      if (length(I) > 0){
-        output <- .Call("forward_backward", piG[, i - 1], A, py[, I],PACKAGE = "HMMcopy")
-        rho[, I] <- output$rho
-        loglik[i] <- loglik[i] + output$loglik
-        Zcounts <- Zcounts + t(colSums(aperm(output$xi, c(3, 2, 1))))
+  
+    if (getDoParWorkers() > 1){ # parallelize if more than 1 core specified
+      ### PARALLELIZATION
+      fwdBack <- foreach(j = 1:length(chrsI), .combine = rbind, .noexport = c("copy")) %dopar% {
+        ## Fwd-back returns rho (responsibilities) and loglik 
+        if (verbose == TRUE) {
+          message(j, " ", appendLF = FALSE)
+        }
+        I <- intersect(chrsI[[j]], which(chrInd))
+        if (length(I) > 0){
+          .Call("forward_backward", piG[, i - 1], A, py[, I],PACKAGE = "HMMcopy")
+        }
+      }
+      if (verbose == TRUE) { message("") }
+      ## extract and combine fwd-back outputs 
+      if (length(chrsI) > 1) {
+        loglik[i] <- sum(do.call(rbind, fwdBack[, "loglik"]))  #combine loglik
+        rho[, chrInd] <- do.call(cbind, fwdBack[, "rho"])  #combine rho from parallel runs  
+        tmp <- lapply(as.list(fwdBack[, "xi"]), function(x){ rowSums(x, dims=2) })
+        Zcounts <- Reduce("+", tmp) # combine xi 
+      } else {
+        loglik[i] <- fwdBack[["loglik"]]
+        rho[, chrInd] <- fwdBack[["rho"]]
+        Zcounts <- rowSums(fwdBack[["xi"]], dims = 2)
+      }
+    } else { # otherwise is single core, then no need to use foreach which incurs overhead
+      Zcounts <- matrix(0, KS, KS)
+      for (j in 1:length(chrsI)) {
+        I <- intersect(chrsI[[j]], which(chrInd))
+        if (length(I) > 0){
+          output <- .Call("forward_backward", piG[, i - 1], A, py[, I],PACKAGE = "HMMcopy")
+          rho[, I] <- output$rho
+          loglik[i] <- loglik[i] + output$loglik
+          Zcounts <- Zcounts + t(colSums(aperm(output$xi, c(3, 2, 1))))
+        }
       }
     }
-    
+     
+
+    elapsedTime <- proc.time() - ptm
+    message("runEM iter ", i-1 , ": E-step ", format(elapsedTime[3] / 60, digits = 2), " min.")
     ## marginalize rho by sample ##
     #rhoS <- list()
     #for (s in 1:S){
@@ -125,7 +154,7 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
     
     ################ M-step ####################
     if (verbose) { message("runEM iter", i-1 , ": Maximization") }
-    ptm.em <- proc.time()
+    ptm.mstep <- proc.time()
     if (param$likModel == "Gaussian"){
       output <- estimateGaussianParamsMap(copy[chrInd, ], n[, i - 1], sp[, i - 1], phi[, i - 1], 
                                           varsKS, piG[, i - 1], A, param,
@@ -144,7 +173,6 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
         }     
       }
     }else{ # Student's-t model
-      ptm.em <- proc.time()
       output <- estimateTParamsMap(copy[chrInd, ], n[, i - 1], sp[, i - 1], phi[, i - 1], 
                                 lambdas[, , i - 1], piG[, i - 1], A, param,
                                 rho[, chrInd], Zcounts, loglik[i],
@@ -164,8 +192,8 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
         }     
       }
     }
-    elapsedTime <- proc.time() - ptm.em
-    message("runEM iter", i-1 , ": ", format(elapsedTime[3] / 60, digits = 2), "min.")
+    elapsedTime <- proc.time() - ptm.mstep
+    message("runEM iter ", i-1 , ": M-step ", format(elapsedTime[3] / 60, digits = 2), " min.")
     n[, i] <- output$n
     sp[, i] <- output$sp
     phi[, i] <- output$phi
@@ -206,7 +234,7 @@ runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE,
       message(paste("runEM iter", i-1, " Log likelihood:", loglik[i])) 
       message("runEM iter", i-1, " Time: ", format(elapsedTime[3] / 60, digits = 2), " min.")
     }
-    if ((abs(loglik[i] - loglik[i - 1]) / abs(loglik[i])) < likChangeConvergence){#} && loglik[i] > loglik[i - 1]) {
+    if ((abs(loglik[i] - loglik[i - 1]) / abs(max(loglik[i - 1], -1e30))) < likChangeConvergence){#} && loglik[i] > loglik[i - 1]) {
       message("runEM iter", i-1, " EM Converged")
       converged = 1
     }
@@ -707,7 +735,8 @@ varUpdateEqn <- function(n, sp, phi, jointStates, jointCNstates, jointSCstatus, 
   S <- length(n)
   cn <- 2
   ct <- jointCNstates
-  # consolidate to K states from K^S expand states
+  ## TO DO/TRY
+  # consolidate to K states from K^S expand states!!!
   # term1 <- rep(0, K)
   # term2 <- rep(0, K)
   # for (i in 1:K){
@@ -830,8 +859,8 @@ priorProbs <- function(n, sp, phi, lambda, var, piG, A, params,
   priorA <- rep(0, KS)
   if (estimateTransition){
     priorA <- sapply(1:KS, function(ks){
-      dirichletpdflog(A[ks, ], params$dirPrior[ks, ])
-      #dirichletpdflog(params$A_prior[ks, ], A[ks, ])
+      #dirichletpdflog(A[ks, ], params$dirPrior[ks, ])
+      dirichletpdflog(params$A_prior[ks, ], A[ks, ])
     })
   }
   priorA <- sum(priorA)

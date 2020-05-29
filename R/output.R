@@ -14,7 +14,7 @@
 ###### FUNCTION TO GET OUTPUT HMM RESULTS ########
 ##################################################
 outputHMM <- function(cna, segs, results, patientID = NULL, outDir = "."){
-  names <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP",paste0(rep("HLAMP", 8), 2:25))
+  names <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP",paste0("HLAMP", 2:1000))
 
   S <- results$param$numberSamples
   
@@ -115,10 +115,18 @@ outputParametersToFile <- function(hmmResults, file){
       write.table(paste0("ChrX median log ratio:\t", signif(x$chrXMedian[s], digits = 4)), file = fc, col.names = FALSE, 
                   row.names = FALSE, quote = FALSE, sep = "\t")
     }
-    write.table(paste0("Student's t mean: ", paste0(signif(x$mus[,s,i], digits = 2), collapse = ", ")), 
+    write.table(paste0("Likelihood model:\t", hmmResults$results$param$likModel), file = fc, col.names = FALSE, 
+                  row.names = FALSE, quote = FALSE, sep = "\t")
+    if (hmmResults$results$param$likModel == "t"){
+      write.table(paste0("Student's t mean: ", paste0(signif(x$mus[,s,i], digits = 2), collapse = ", ")), 
                 file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
-    write.table(paste0("Student's t precision: ", paste0(signif(x$lambdas[,s,i], digits = 2), collapse = ", ")), file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
-    write.table(paste0("Gamma Rate Init:\t", signif(hmmResults.cor$results$param$betaLambda[1], digits=2)), file=fc, col.names=FALSE, row.names=FALSE, quote=FALSE, sep="\t")
+      write.table(paste0("Student's t precision: ", paste0(signif(x$lambdas[,s,i], digits = 2), collapse = ", ")), file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
+      write.table(paste0("Gamma Rate Init:\t", signif(hmmResults.cor$results$param$betaLambda[1], digits=2)), file=fc, col.names=FALSE, row.names=FALSE, quote=FALSE, sep="\t")
+    }else if (hmmResults$results$param$likModel == "Gaussian"){
+      write.table(paste0("Gaussian mean: ", paste0(signif(x$mus[,s,i], digits = 2), collapse = ", ")), 
+                file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
+      write.table(paste0("Gaussian variance: ", paste0(signif(x$vars[,s], digits = 2), collapse = ", ")), file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
+    }
     write.table(paste0("GC-Map correction MAD:\t", format(mad(diff(2^as.numeric(hmmResults$cna[[s]][,"logR"])), na.rm=T), digits=4)), file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
     write.table("\n", file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
   }
