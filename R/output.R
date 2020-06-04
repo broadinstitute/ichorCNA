@@ -128,6 +128,7 @@ outputParametersToFile <- function(hmmResults, file){
       write.table(paste0("Gaussian variance: ", paste0(signif(x$vars[,s], digits = 2), collapse = ", ")), file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
     }
     write.table(paste0("GC-Map correction MAD:\t", format(mad(diff(2^as.numeric(hmmResults$cna[[s]][,"logR"])), na.rm=T), digits=4)), file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
+    write.table(paste0("Log-likelihood:\t", format(as.numeric(hmmResults.cor$results$loglik[i, "loglik"]), digits=4)), file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
     write.table("\n", file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
   }
   write.table(x$loglik, file = fc, col.names = TRUE, row.names = FALSE, quote = FALSE, sep = "\t")

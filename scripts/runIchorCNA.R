@@ -414,15 +414,16 @@ save.image(outImage)
 ### SORT SOLUTIONS BY DECREASING LIKELIHOOD ###
 fracAltSub[is.nan(fracAltSub$V1), ] <- 0
 if (estimateScPrevalence){ ## sort but excluding solutions with too large % subclonal 
-    if (numSamples > 1){
-        fracInd <- which(rowSums(fracAltSub <= maxFracCNASubclone) == S &
-                        rowSums(fracGenomeSub <= maxFracGenomeSubclone) == S)
-    }else{
-        fracInd <- which(fracAltSub <= maxFracCNASubclone &
-                        fracGenomeSub <= maxFracGenomeSubclone)
-    }
+  if (numSamples > 1){
+      fracInd <- which(rowSums(fracAltSub <= maxFracCNASubclone) == S &
+                      rowSums(fracGenomeSub <= maxFracGenomeSubclone) == S)
+  }else{
+      fracInd <- which(fracAltSub <= maxFracCNASubclone &
+                      fracGenomeSub <= maxFracGenomeSubclone)
+  }
 	if (length(fracInd) > 0){ ## if there is a solution satisfying % subclonal
-		ind <- fracInd[order(loglik[fracInd, "loglik"], decreasing=TRUE)]
+    # sort by highest loglik and then by lowest fracCNAsubclonal (if ties)
+		ind <- fracInd[order(-loglik[fracInd, "loglik"], loglik[fracInd, "Frac_CNA_subclonal"])]
 	}else{ # otherwise just take largest likelihood
 		ind <- order(as.numeric(loglik[, "loglik"]), decreasing=TRUE) 
 	}

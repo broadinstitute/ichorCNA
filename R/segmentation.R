@@ -140,7 +140,7 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = c(1,3), n_0 = 0.5, ploidy
 		ct.sc.status = c(rep(FALSE, length(ct)), rep(TRUE, length(ct.sc))),
 		phi_0 = ploidy_0, alphaPhi = 4, betaPhi = 0.75,
 		n_0 = n_0, alphaN = 1, betaN = 1,
-		sp_0 = 0.01, alphaSp = 2, betaSp = 2,
+		sp_0 = 0.5, alphaSp = 2, betaSp = 2,
 		lambda = as.matrix(rep(100, length(ct)+length(ct.sc)), ncol=1),
 		nu = 2.1,
 		kappa = rep(75, length(ct)), 
