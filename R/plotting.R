@@ -78,8 +78,8 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir, counts,
       dev.off()
     }
     
-    ### PLOT FIT COMPARISON ###
-    if (length(counts[[s]]$counts) > 1e4){
+    ### PLOT FIT COMPARISON ### only if replication correction was performed
+    if (!is.null(counts[[s]]$counts$cor.rep) && length(counts[[s]]$counts) > 1e4){
       for (i in chrs){
         outPlotFile <- paste0(outDir, "/", id, "/", id, "_fit_chr", i)
         if (plotFileType == "png"){ 
@@ -129,7 +129,7 @@ plotSolutions <- function(hmmResults.cor, tumour_copy, chrs, outDir, counts,
               jointStates = hmmResults.cor$results$param$jointStates[, s],
               likModel = likModel,
               subclone = hmmResults.cor$results$param$ct.sc.status,
-              nu = hmmResults.cor$results$param$nu, copy.states = param$ct)
+              nu = hmmResults.cor$results$param$nu, copy.states = hmmResults.cor$results$param$ct)
     dev.off()
   }
 }

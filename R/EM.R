@@ -854,7 +854,7 @@ priorProbs <- function(n, sp, phi, lambda, var, piG, A, params,
                        estimateSubclone = TRUE){
   S <- params$numberSamples
   K <- length(params$ct)
-  KS <- nrow(param$jointStates) #K ^ S
+  KS <- nrow(params$jointStates) #K ^ S
   ## prior terms ##
   priorA <- rep(0, KS)
   if (estimateTransition){
