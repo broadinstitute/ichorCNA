@@ -424,6 +424,10 @@ if (estimateScPrevalence){ ## sort but excluding solutions with too large % subc
 	if (length(fracInd) > 0){ ## if there is a solution satisfying % subclonal
     # sort by highest loglik and then by lowest fracCNAsubclonal (if ties)
 		ind <- fracInd[order(-loglik[fracInd, "loglik"], loglik[fracInd, "Frac_CNA_subclonal"])]
+    # sort by highest loglik for solutions that don't pass fracCNAsubclonal threshold
+    fracInd.exclude <- setdiff(1:nrow(loglik), ind)
+    ind.excludeSC <- fracInd.exclude[order(-loglik[fracInd.exclude, "loglik"])]
+    ind <- c(ind, ind.excludeSC)
 	}else{ # otherwise just take largest likelihood
 		ind <- order(as.numeric(loglik[, "loglik"]), decreasing=TRUE) 
 	}
