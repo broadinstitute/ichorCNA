@@ -9,8 +9,6 @@
 # description: Hidden Markov model (HMM) to analyze Ultra-low pass whole genome sequencing (ULP-WGS) data.
 # This script is the main script to run the HMM.
 
-library(doParallel)
-
 runEM <- function(copy, chr, chrInd, param, maxiter, verbose = TRUE, 
 									estimateNormal = TRUE, estimatePloidy = TRUE, 
 									estimateVar = TRUE, estimatePrecision = TRUE,

@@ -1,13 +1,13 @@
 Package: ichorCNA
 Type: Package
 Title: A tool for estimating the fraction of tumor in ultra-low-pass whole genome sequencing (ULP-WGS) of cell-free DNA
-Version: 0.3.3
-Date: 2020-03-13
-Author: Gavin Ha, Justin Rhoades, Samuel Freeman
-Maintainer: Gavin Ha <gha@fredhutch.org>, Justin Rhoades <rhoades@broadinstitute.org>, Sam Freeman <sfreeman@broadinstitute.org>
+Version: 0.3.4
+Date: 2020-08-17
+Author: Gavin Ha, 
+Maintainer: Gavin Ha <gha@fredhutch.org>
 Depends: R (>= 3.6.0)
 biocViews:
-Imports: HMMcopy (>= 1.14.0), plyr (>= 1.8.4), GenomicRanges (>= 1.36.0), GenomeInfoDb (>= 1.20.0)
+Imports: HMMcopy (>= 1.14.0), plyr (>= 1.8.4), GenomicRanges (>= 1.36.0), GenomeInfoDb (>= 1.20.0), doMC (1.3.6), foreach (1.5.0)
 Description: A tool for estimating the fraction of tumor in ultra-low-pass whole genome sequencing (ULP-WGS) of cell-free DNA.
 License: GPL-3
-URL: https://github.com/broadinstitute/ichorCNA
+URL: https://github.com/GavinHaLab/ichorCNA/
