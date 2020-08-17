@@ -256,28 +256,28 @@ normalizeByPanelOrMatchedNormal <- function(tumour_copy, chrs = c(1:22, "X", "Y"
     genomeStyle <- seqlevelsStyle(tumour_copy)[1]
     seqlevelsStyle(chrs) <- genomeStyle
  	### COMPUTE LOG RATIO FROM MATCHED NORMAL OR PANEL AND HANDLE CHRX ###
-	## NO PANEL
-	# matched normal but NO panel, then just normalize by matched normal (WES)
-	## WHY DO WE NOT NORMALIZE BY NORMAL WITH PANEL? ##
 	chrXInd <- grep("X", as.character(seqnames(tumour_copy)))
 	chrXMedian <- median(tumour_copy[chrXInd, ]$copy, na.rm = TRUE)
-	if (!is.null(normal_copy) && is.null(normal_panel)){
-			message("Normalizing Tumour by Normal")
-			tumour_copy$copy <- tumour_copy$copy - normal_copy$copy
-			rm(normal_copy)
+
+	# matched normal and panel and male, then compute normalized chrX median 
+	# if (!is.null(normal_copy) && !is.null(normal_panel) && gender=="male"){
+	# 		message("Normalizing by matched normal for ChrX")
+	# 		chrX.MNnorm <- tumour_copy$copy[chrXInd] - normal_copy$copy[chrXInd]
+	# 		chrXMedian.MNnorm <- median(chrX.MNnorm, na.rm = TRUE)
+	# }
+	# MATCHED NORMAL, normalize by matched normal
+	# if both normal and panel, then this step is the second normalization
+	if (!is.null(normal_copy)){
+		message("Normalizing Tumour by Normal")
+		tumour_copy$copy <- tumour_copy$copy - normal_copy$copy
+		rm(normal_copy)
+	}else if (is.null(normal_copy) && gender=="male" && !gender.mismatch && normalizeMaleX){
+		# if male, and no matched normal, then just normalize chrX to median 
+		tumour_copy$copy[chrXInd] <- tumour_copy$copy[chrXInd] - chrXMedian
 	}
-	# matched normal and panel and male, then compute normalized chrX median (WES)
-	if (!is.null(normal_copy) && !is.null(normal_panel) && gender=="male"){
-			message("Normalizing by matched normal for ChrX")
-			chrX.MNnorm <- tumour_copy$copy[chrXInd] - normal_copy$copy[chrXInd]
-			chrXMedian.MNnorm <- median(chrX.MNnorm, na.rm = TRUE)
-	}
-	# if male, then just normalize chrX to median (ULP and WES)
-	if (is.null(normal_copy) && gender=="male" && !gender.mismatch && normalizeMaleX){
-			tumour_copy$copy[chrXInd] <- tumour_copy$copy[chrXInd] - chrXMedian
-	}
-	# PANEL, then normalize by panel instead of matched normal (ULP and WES)
+	# PANEL, then normalize by panel instead of matched normal 
 	if (!is.null(normal_panel)){
+		message("Normalizing Tumour by Panel of Normals (PoN)")
 		## load in IRanges object, then convert to GRanges
 		panel <- readRDS(normal_panel)
 		seqlevelsStyle(panel) <- genomeStyle
@@ -286,13 +286,19 @@ normalizeByPanelOrMatchedNormal <- function(tumour_copy, chrs = c(1:22, "X", "Y"
         hits <- findOverlaps(tumour_copy, panel, type="equal")
         tumour_copy <- tumour_copy[queryHits(hits),]
         panel <- panel[subjectHits(hits),]
+        if (!is.null(normal_copy)){ # if matched normal provided, then subset it too
+        	normal_copy <- normal_copy[queryHits(hits),]
+        }
         # subtract out panel median
 		tumour_copy$copy <- tumour_copy$copy - panel$Median
-		# if male, then shift chrX by +chrXMedian.MNnorm
-		if (gender == "male" && exists("chrXMedian.MNnorm")){
-			tumour_copy$copy[chrXInd] <- tumour_copy$copy[chrXInd] + chrXMedian.MNnorm
-		}
 	}
+	
+	# }else if (gender == "male" && exists("chrXMedian.MNnorm")){
+	# 	# if male, then shift chrX by +chrXMedian.MNnorm
+	# 	# only need if matched normal doesn't 
+	# 	tumour_copy$copy[chrXInd] <- tumour_copy$copy[chrXInd] + chrXMedian.MNnorm
+	# }
+	
 	return(tumour_copy)
 }
 
