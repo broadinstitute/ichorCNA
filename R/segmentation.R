@@ -204,7 +204,7 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = c(1,3), n_0 = 0.5, ploidy
     param$betaVar <- rep(param$betaVar, S)
     #alphaVar <- 1 / (apply(x, 2, var, na.rm = TRUE) / sqrt(K) ^ 2)
     #alphaVar <- 1 / logR.var  # same as betaLambda
-    param$alphaVar <- matrix(1 / logR.var, ncol = S, nrow = KS, byrow = TRUE)
+    param$alphaVar <- matrix(1 / logR.var, ncol = S, nrow = K, byrow = TRUE)
     param$var <- matrix(logR.var, ncol = S, nrow = K, byrow = TRUE)
     param$var[param$ct %in% c(2)] <- logR.var / 10
     param$var[param$ct %in% c(1,3)] <- logR.var 
@@ -282,7 +282,7 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = c(1,3), n_0 = 0.5, ploidy
     }
 
     param$kappa <- param$kappa[indKS]
-    param$alphaVar <- param$alphaVar[indKS, , drop = FALSE]
+    param$alphaVar <- param$alphaVar[indK, , drop = FALSE]
     param$jointStates <- param$jointStates[indKS, , drop = FALSE]
     param$jointCNstates <- param$jointCNstates[indKS, , drop = FALSE]
     param$jointSCstatus <- param$jointSCstatus[indKS, , drop = FALSE]
