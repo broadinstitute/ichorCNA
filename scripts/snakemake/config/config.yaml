@@ -22,6 +22,7 @@ ichorCNA_centromere:  ../../inst/extdata/GRCh37.p13_centromere_UCSC-gapTable.txt
 ichorCNA_minMapScore: 0.75
 ichorCNA_chrs:  c(1:22, \"X\")
 ichorCNA_fracReadsInChrYForMale: 0.002
+ichorCNA_normalizeMaleX: TRUE
 ichorCNA_genomeBuild:  hg19
 ichorCNA_genomeStyle:  NCBI
 

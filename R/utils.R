@@ -271,7 +271,7 @@ normalizeByPanelOrMatchedNormal <- function(tumour_copy, chrs = c(1:22, "X", "Y"
 		message("Normalizing Tumour by Normal")
 		tumour_copy$copy <- tumour_copy$copy - normal_copy$copy
 		rm(normal_copy)
-	}else if (is.null(normal_copy) && gender=="male" && !gender.mismatch && normalizeMaleX){
+	}else if (is.null(normal_copy) && gender == "male" && normalizeMaleX){
 		# if male, and no matched normal, then just normalize chrX to median 
 		tumour_copy$copy[chrXInd] <- tumour_copy$copy[chrXInd] - chrXMedian
 	}
@@ -282,15 +282,23 @@ normalizeByPanelOrMatchedNormal <- function(tumour_copy, chrs = c(1:22, "X", "Y"
 		panel <- readRDS(normal_panel)
 		seqlevelsStyle(panel) <- genomeStyle
 		panel <- keepChr(panel, chr = chrs)
+		chrXInd.panel <- grep("X", as.character(seqnames(panel)))
         # intersect bins in sample and panel
-        hits <- findOverlaps(tumour_copy, panel, type="equal")
-        tumour_copy <- tumour_copy[queryHits(hits),]
-        panel <- panel[subjectHits(hits),]
-        if (!is.null(normal_copy)){ # if matched normal provided, then subset it too
-        	normal_copy <- normal_copy[queryHits(hits),]
-        }
-        # subtract out panel median
-		tumour_copy$copy <- tumour_copy$copy - panel$Median
+        hits <- findOverlaps(query = tumour_copy, subject = panel, type="equal")
+        #tumour_copy <- tumour_copy[queryHits(hits),]
+        #panel <- panel[subjectHits(hits),]
+        #if (!is.null(normal_copy)){ # if matched normal provided, then subset it too
+        #	normal_copy <- normal_copy[queryHits(hits),]
+        #}
+        ### Normalize by panel median
+        if (normalizeMaleX == FALSE && gender == "male"){  # do not normalize chrX with PoN
+        	autoChrInd.tum <- setdiff(queryHits(hits), chrXInd)
+        	autoChrInd.panel <- setdiff(subjectHits(hits), chrXInd.panel)
+			tumour_copy$copy[chrXInd.panel] <- tumour_copy$copy[chrXInd.panel] - panel$Median[chrXInd.panel]
+		}else { # female OR normalizeMaleX - normalize chrX with PoN
+			tumour_copy$copy[queryHits(hits)] <- tumour_copy$copy[queryHits(hits)] - 
+				panel$Median[subjectHits(hits)]
+		}
 	}
 	
 	# }else if (gender == "male" && exists("chrXMedian.MNnorm")){
