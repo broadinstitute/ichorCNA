@@ -22,7 +22,7 @@ option_list <- list(
 	make_option(c("--maleChrXLogRThres"), type="numeric", default=-0.80, help = "ChrX Log ratio threshold to confirm as male gender."),
 	make_option(c("--fracReadsInChrYForMale"), type="numeric", default=0.001, help = "Threshold for fraction of reads in chrY to assign as male. Default: [%default]"),
 	make_option(c("-e", "--exons.bed"), type = "character", default=NULL, help = "Path to bed file containing exon regions."),
-	make_option(c("--method"), type = "character", default="median", help="Median or Mean.")
+	make_option(c("--method"), type = "character", default="median", help="Median or Mean."),
 	make_option(c("--libdir"), type = "character", default=NULL, help = "Script library path. Usually exclude this argument unless custom modifications have been made to the ichorCNA R package code and the user would like to source those R files. Default: [%default]"),
 	make_option(c("--ylim"), type = "character", default="c(-2,2)", help="Y-limits for plotting of mean/median log ratios"),
 	make_option(c("--plotChrPanels"), type = "logical", default = FALSE, help = "Plot PoN values.")
@@ -30,17 +30,6 @@ option_list <- list(
 parseobj <- OptionParser(option_list=option_list)
 opt <- parse_args(parseobj)
 print(opt)
-
-## load ichorCNA library or source R scripts
-if (!is.null(libdir) && libdir != "None"){
-	source(paste0(libdir,"/R/utils.R"))
-	source(paste0(libdir,"/R/segmentation.R"))
-	source(paste0(libdir,"/R/EM.R"))
-	source(paste0(libdir,"/R/output.R"))
-	source(paste0(libdir,"/R/plotting.R"))
-} else {
-    library(ichorCNA)
-}
 
 #id <- opt$id
 gcWig <- opt$gcWig
@@ -55,6 +44,7 @@ outfile <- opt$outfile
 genomeStyle <- opt$genomeStyle
 genomeBuild <- opt$genomeBuild
 minMapScore <- opt$minMapScore
+libdir <- opt$libdir
 ylim <- eval(parse(text = opt$ylim))
 plotChrPanels <- opt$plotChrPanels
 maleChrXLogRThres <- opt$maleChrXLogRThres
@@ -63,6 +53,18 @@ chrs <- as.character(eval(parse(text = opt$chrs)))
 chrNormalize <- as.character(eval(parse(text=opt$chrNormalize))); 
 seqlevelsStyle(chrs) <- genomeStyle
 seqlevelsStyle(chrNormalize) <- genomeStyle
+
+## load ichorCNA library or source R scripts
+if (!is.null(libdir) && libdir != "None"){
+	source(paste0(libdir,"/R/utils.R"))
+	source(paste0(libdir,"/R/segmentation.R"))
+	source(paste0(libdir,"/R/EM.R"))
+	source(paste0(libdir,"/R/output.R"))
+	source(paste0(libdir,"/R/plotting.R"))
+} else {
+    library(ichorCNA)
+}
+
 
 if (!is.null(centromere)){
 	centromere <- read.delim(centromere,header=T,stringsAsFactors=F,sep="\t")
@@ -177,6 +179,10 @@ ends <- end(ranges(normalGR))
 midPts <- starts + ((ends - starts) / 2) + 1
 # get chr info from USCS using GenomeInfoDB #
 seqInfo <- Seqinfo(genome = genomeBuild)
+seqlevelsStyle(seqInfo) <- genomeStyle
+
+print(seqInfo)
+
 seqInfo <- keepSeqlevels(seqInfo, chrs)
 if (plotChrPanels){
 	coord <- NULL
@@ -203,7 +209,7 @@ if (plotChrPanels){ # additional chr panel attributes #
 }else{
 	numLines <- length(coord$chrBkpt)
 	mid <- (coord$chrBkpt[1:(numLines - 1)] + coord$chrBkpt[2:numLines]) / 2
-	gp <- gp + scale_x_continuous(name = "Chromosome", labels = chr, breaks = mid, limits = c(coord$chrBkpt[1], tail(coord$chrBkpt ,1))) +
+	gp <- gp + scale_x_continuous(name = "Chromosome", labels = chrs, breaks = mid, limits = c(coord$chrBkpt[1], tail(coord$chrBkpt ,1))) +
 	  geom_vline(xintercept = coord$chrBkpt, linetype = "dotted")
 }
 outplotfile <- paste0(outfile, "_", method, ".png")
