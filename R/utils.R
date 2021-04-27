@@ -34,8 +34,8 @@ filterEmptyChr <- function(gr){
 ####################################
 ##### FUNCTION GET SEQINFO ######
 ####################################
-getSeqInfo <- function(genomeBuild = "hg19", genomeStyle = "NCBI"){
-	bsg <- paste0("BSgenome.Hsapiens.UCSC.", genomeBuild)
+getSeqInfo <- function(genomeSpecies = "Hsapiens", genomeBuild = "hg19", genomeStyle = "NCBI"){
+	bsg <- paste0("BSgenome.", genomeSpecies, ".", genomeStyle, ".", genomeBuild)
 	if (!require(bsg, character.only=TRUE, quietly=TRUE, warn.conflicts=FALSE)) {
 		seqinfo <- Seqinfo(genome=genomeBuild)
 	} else {
