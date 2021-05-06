@@ -103,13 +103,13 @@ wigToGRanges <- function(wigfile, verbose = TRUE){
     pos <- seq(from = as.integer(tokens[2]), by = as.integer(tokens[3]),
                length.out = length(data_range))
     val <- as.numeric(input[data_range])
-    temp <- c(temp, list(data.frame(chr, pos, val)))
+    temp <- c(temp, list(data.frame(chr, pos, val, span)))
   }
   if (verbose) { message("Sorting by decreasing chromosome size") }
   lengths <- as.integer(lapply(temp, nrow))
   temp <- temp[order(lengths, decreasing = TRUE)]
   temp = do.call("rbind", temp)
-  output <- GenomicRanges::GRanges(ranges = IRanges(start = temp$pos, width = span),
+  output <- GenomicRanges::GRanges(ranges = IRanges(start = temp$pos, width = temp$span),
                        seqnames = temp$chr, value = temp$val)
   return(output)
 }
