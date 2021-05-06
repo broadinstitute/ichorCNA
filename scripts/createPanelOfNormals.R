@@ -17,7 +17,8 @@ option_list <- list(
 	make_option(c("--chrNormalize"), type="character", default="c(1:22)", help = "Specify chromosomes to normalize GC/mappability biases"),
 	make_option(c("--maleChrXLogRThres"), type="numeric", default=-0.80, help = "ChrX Log ratio threshold to confirm as male gender."),
 	make_option(c("-e", "--exons.bed"), type = "character", default=NULL, help = "Path to bed file containing exon regions."),
-	make_option(c("--method"), type = "character", default="median", help="Median or Mean.")
+	make_option(c("--method"), type = "character", default="median", help="Median or Mean."),
+	make_option(c("--normalizeX"), type="logical", default=TRUE, help = "Normalize chrX by median. Default: [%default]")
 	#make_option(c("--ylim"), type = "character", default="c(-2,2)", help="Y-limits for plotting of mean/median log ratios")
 )
 parseobj <- OptionParser(option_list=option_list)
@@ -35,6 +36,7 @@ outfile <- opt$outfile
 genomeStyle <- opt$genomeStyle
 #ylim <- eval(parse(text = opt$ylim))
 maleChrXLogRThres <- opt$maleChrXLogRThres
+normalizeX <- as.logical(opt$normalizeX)
 chrs <- as.character(eval(parse(text = opt$chrs)))
 chrNormalize <- as.character(eval(parse(text=opt$chrNormalize))); 
 seqlevelsStyle(chrs) <- genomeStyle
@@ -94,8 +96,9 @@ for (i in 1:length(files)){
 	chrXStr <- grep("X", chrs, value = TRUE)
 	chrXInd <- as.character(seqnames(normalGR)) == chrXStr
 	## Normalize chrX ##
-	values(normalGR)[[sid]][chrXInd] <- values(normalGR)[[sid]][chrXInd] - chrXMedian
-	
+	if (normalizeX){
+	  values(normalGR)[[sid]][chrXInd] <- values(normalGR)[[sid]][chrXInd] - chrXMedian
+	}
 }
 
 

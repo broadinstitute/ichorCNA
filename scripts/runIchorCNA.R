@@ -45,6 +45,7 @@ option_list <- list(
   make_option(c("--chrs"), type="character", default="c(1:22,\"X\")", help = "Specify chromosomes to analyze. Default: [%default]"),
   make_option(c("--genomeBuild"), type="character", default="hg19", help="Geome build. Default: [%default]"),
   make_option(c("--genomeStyle"), type = "character", default = "NCBI", help = "NCBI or UCSC chromosome naming convention; use UCSC if desired output is to have \"chr\" string. [Default: %default]"),
+  make_option(c("--genomeSpecies"), type="character", default="Hsapiens", help="Geome species. Default: [%default]"),
   make_option(c("--normalizeMaleX"), type="logical", default=TRUE, help = "If male, then normalize chrX by median. Default: [%default]"),
   make_option(c("--minTumFracToCorrect"), type="numeric", default=0.1, help = "Tumor-fraction correction of bin and segment-level CNA if sample has minimum estimated tumor fraction. [Default: %default]"), 
   make_option(c("--fracReadsInChrYForMale"), type="numeric", default=0.001, help = "Threshold for fraction of reads in chrY to assign as male. Default: [%default]"),
@@ -106,6 +107,7 @@ gender <- NULL
 outImage <- paste0(outDir,"/", patientID,".RData")
 genomeBuild <- opt$genomeBuild
 genomeStyle <- opt$genomeStyle
+genomeSpecies <- opt$genomeSpecies
 chrs <- as.character(eval(parse(text = opt$chrs)))
 chrTrain <- as.character(eval(parse(text=opt$chrTrain))); 
 chrNormalize <- as.character(eval(parse(text=opt$chrNormalize))); 
@@ -125,7 +127,7 @@ if (!is.null(libdir) && libdir != "None"){
 }
 
 ## load seqinfo 
-seqinfo <- getSeqInfo(genomeBuild, genomeStyle)
+seqinfo <- getSeqInfo(genomeSpecies, genomeBuild, genomeStyle)
 
 if (substr(tumour_file,nchar(tumour_file)-2,nchar(tumour_file)) == "wig") {
   wigFiles <- data.frame(cbind(patientID, tumour_file))
