@@ -73,6 +73,7 @@ library(GenomicRanges)
 library(GenomeInfoDb)
 library(foreach)
 library(doMC)
+library(data.table)
 options(stringsAsFactors=FALSE, bitmapType='cairo')
 
 patientID <- opt$id
@@ -152,7 +153,7 @@ if (substr(tumour_file,nchar(tumour_file)-2,nchar(tumour_file)) == "wig") {
 if (is.null(exons.bed) || exons.bed == "None" || exons.bed == "NULL"){
   targetedSequences <- NULL
 }else{
-  targetedSequences <- read.delim(exons.bed, header=T, sep="\t")  
+  targetedSequences <- fread(exons.bed)
 }
 
 ## load PoN
