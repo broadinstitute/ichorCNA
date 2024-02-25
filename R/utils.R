@@ -299,7 +299,7 @@ correctReadCounts <- function(x, chrNormalize = c(1:22), mappability = 0.9, samp
     if (verbose) { message("Correcting for mappability bias...") }
     coutlier <- 0.01
     range <- quantile(x$cor.gc[which(x$valid & chrInd)], prob = c(0, 1 - coutlier), na.rm = TRUE)
-    set <- which(x$cor.gc < range[2] & chrInd)
+    set <- which(x$ideal & x$cor.gc < range[2] & chrInd)
     select <- sample(set, min(length(set), samplesize))
     final = approxfun(lowess(x$map[select], x$cor.gc[select]))
     x$cor.map <- x$cor.gc / final(x$map)
