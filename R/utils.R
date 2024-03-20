@@ -153,7 +153,7 @@ loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, m
 		  counts <- filterByMappabilityScore(counts, map=map, mapScoreThres = mapScoreThres)
 		}
 		## get gender ##
-		gender <- getGender(counts.raw, counts, gc, map, fracReadsInChrYForMale = fracReadsInChrYForMale, 
+		gender <- getGender(counts.raw, counts, gc = NULL, map = NULL, fracReadsInChrYForMale = fracReadsInChrYForMale, 
 							chrXMedianForMale = chrXMedianForMale, useChrY = useChrY,
 							centromere=centromere, flankLength=flankLength, targetedSequences = targetedSequences,
 							genomeStyle = genomeStyle)
