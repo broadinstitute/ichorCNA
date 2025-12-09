@@ -1,5 +1,5 @@
 __default__:
-    partition:  campus # users specified
+    partition:  campus-new # users specified
     mem:    4G
     time:   "1:0:0"
     ncpus:  1

@@ -1,19 +1,20 @@
 # file:   output.R
 # author: Gavin Ha, Ph.D.
-#		Fred Hutchinson Cancer Research Center
+#         Fred Hutchinson Cancer Research Center
 # contact: <gha@fredhutch.org>
-# author: Justin Rhoades
-#       Dana-Farber Cancer Institute
-#       Broad Institute
-# https://github.com/broadinstitute/ichorCNA
-# date:  July 12, 2019
+# # website: https://GavinHaLab.org
+#
+# author: Justin Rhoades, Broad Institute
+#
+# ichorCNA website: https://github.com/broadinstitute/ichorCNA
+# date:   January 6, 2020
 # description: Hidden Markov model (HMM) to analyze Ultra-low pass whole genome sequencing (ULP-WGS) data.
 
 ##################################################
 ###### FUNCTION TO GET OUTPUT HMM RESULTS ########
 ##################################################
 outputHMM <- function(cna, segs, results, patientID = NULL, outDir = "."){
-  names <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP",paste0(rep("HLAMP", 8), 2:25))
+  names <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP",paste0("HLAMP", 2:1000))
 
   S <- results$param$numberSamples
   
@@ -84,8 +85,8 @@ outputParametersToFile <- function(hmmResults, file){
     ploidy <- (1 - x$n[i]) * x$phi[i] + x$n[i] * 2
     write.table(paste0("Ploidy:\t", signif(x$phi[s, i], digits = 4)), file = fc, col.names = FALSE, 
                 row.names = FALSE, quote = FALSE, sep = "\t")
-   	subcloneGenomeFrac <- sum(hmmResults.cor$cna[[s]]$subclone.status) / nrow(hmmResults.cor$cna[[s]])
-   	subcloneCNAFrac <- sum(hmmResults.cor$cna[[s]]$subclone.status) / sum(hmmResults.cor$cna[[s]]$copy.num != 2)
+   	subcloneGenomeFrac <- sum(hmmResults$cna[[s]]$subclone.status) / nrow(hmmResults$cna[[s]])
+   	subcloneCNAFrac <- sum(hmmResults$cna[[s]]$subclone.status) / sum(hmmResults$cna[[s]]$copy.num != 2)
    	scFrac <- 1 - x$sp[s, i]
    	if (subcloneGenomeFrac == 0){
    		scFrac <- NA
@@ -114,11 +115,20 @@ outputParametersToFile <- function(hmmResults, file){
       write.table(paste0("ChrX median log ratio:\t", signif(x$chrXMedian[s], digits = 4)), file = fc, col.names = FALSE, 
                   row.names = FALSE, quote = FALSE, sep = "\t")
     }
-    write.table(paste0("Student's t mean: ", paste0(signif(x$mus[,s,i], digits = 2), collapse = ", ")), 
+    write.table(paste0("Likelihood model:\t", hmmResults$results$param$likModel), file = fc, col.names = FALSE, 
+                  row.names = FALSE, quote = FALSE, sep = "\t")
+    if (hmmResults$results$param$likModel == "t"){
+      write.table(paste0("Student's t mean: ", paste0(signif(x$mus[,s,i], digits = 2), collapse = ", ")), 
                 file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
-    write.table(paste0("Student's t precision: ", paste0(signif(x$lambdas[,s,i], digits = 2), collapse = ", ")), file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
-    write.table(paste0("Gamma Rate Init:\t", signif(hmmResults.cor$results$param$betaLambda[1], digits=2)), file=fc, col.names=FALSE, row.names=FALSE, quote=FALSE, sep="\t")
+      write.table(paste0("Student's t precision: ", paste0(signif(x$lambdas[,s,i], digits = 2), collapse = ", ")), file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
+      write.table(paste0("Gamma Rate Init:\t", signif(hmmResults$results$param$betaLambda[1], digits=2)), file=fc, col.names=FALSE, row.names=FALSE, quote=FALSE, sep="\t")
+    }else if (hmmResults$results$param$likModel == "Gaussian"){
+      write.table(paste0("Gaussian mean: ", paste0(signif(x$mus[,s,i], digits = 2), collapse = ", ")), 
+                file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
+      write.table(paste0("Gaussian variance: ", paste0(signif(x$vars[,s], digits = 2), collapse = ", ")), file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
+    }
     write.table(paste0("GC-Map correction MAD:\t", format(mad(diff(2^as.numeric(hmmResults$cna[[s]][,"logR"])), na.rm=T), digits=4)), file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
+    write.table(paste0("Log-likelihood:\t", format(as.numeric(hmmResults$results$loglik[i, "loglik"]), digits=4)), file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
     write.table("\n", file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
   }
   write.table(x$loglik, file = fc, col.names = TRUE, row.names = FALSE, quote = FALSE, sep = "\t")

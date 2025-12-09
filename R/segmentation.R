@@ -1,22 +1,21 @@
 # file:   segmentation.R
 # author: Gavin Ha, Ph.D.
-#         Justin Rhoades
-#               Dana-Farber Cancer Institute
-#               Broad Institute
-# contact: <gavinha@broadinstitute.org>
-# ULP-WGS website: http://www.broadinstitute.org/~gavinha/ULP-WGS/
-# HMMcopy website: http://compbio.bccrc.ca/software/hmmcopy/ and https://www.bioconductor.org/packages/release/bioc/html/HMMcopy.html
-# date:   Oct 26, 2016
+#         Fred Hutchinson Cancer Research Center
+# contact: <gha@fredhutch.org>
+# website: https://GavinHaLab.org
+#
+# ichorCNA website: https://github.com/GavinHaLab/ichorCNA
+# date:   January 6, 2020
 # description: Hidden Markov model (HMM) to analyze Ultra-low pass whole genome sequencing (ULP-WGS) data.
 # This script is the main script to run the HMM.
 
 HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL, 
     chrTrain = c(1:22), maxiter = 50, estimateNormal = TRUE, estimatePloidy = TRUE, 
-    estimatePrecision = TRUE, estimateSubclone = TRUE, estimateTransition = TRUE,
-    estimateInitDist = TRUE, logTransform = FALSE, verbose = TRUE) {
-  chr <- as.factor(seqnames(x[[1]]))
+    estimatePrecision = TRUE, estimateVar = TRUE, estimateSubclone = TRUE, estimateTransition = TRUE,
+    estimateInitDist = TRUE, logTransform = FALSE, likChangeConvergence = 1e-3, verbose = TRUE) {
+  	chr <- as.factor(seqnames(x[[1]]))
 	# setup columns for multiple samples #
-	dataMat <- as.matrix(as.data.frame(lapply(x, function(y) { mcols(x[[1]])[, dataType] })))
+	dataMat <- as.matrix(as.data.frame(lapply(x, function(y) { mcols(y)[, dataType] })))
 	
 	# normalize by median and log data #
 	if (logTransform){
@@ -46,8 +45,10 @@ HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL,
 	####### RUN EM ##########
   convergedParams <- runEM(dataMat, chr, chrInd, param, maxiter, 
       verbose, estimateNormal = estimateNormal, estimatePloidy = estimatePloidy, 
-      estimateSubclone = estimateSubclone, estimatePrecision = estimatePrecision, 
-      estimateTransition = estimateTransition, estimateInitDist = estimateInitDist)
+      estimateVar = estimateVar, estimateSubclone = estimateSubclone, 
+      estimatePrecision = estimatePrecision, estimateTransition = estimateTransition, 
+      estimateInitDist = estimateInitDist, likChangeConvergence = likChangeConvergence)
+	
   # Calculate likelihood using converged params
  # S <- param$numberSamples
  # K <- length(param$ct)
@@ -65,7 +66,7 @@ HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL,
   # setup columns for multiple samples #
   segs <- segmentData(x, validInd, viterbiResults$states, convergedParams)
   #output$segs <- processSegments(output$segs, chr, start(x), end(x), x$DataToUse)
-  names <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP",paste0(rep("HLAMP", 8), 2:25))
+  names <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP",paste0("HLAMP", 2:1000))
   #if (c(0) %in% param$ct){ #if state 0 HOMD is IN params#
   	#names <- c("HOMD", names)
   	# shift states to start at 2 (HETD)
@@ -123,96 +124,172 @@ getTransitionMatrix <- function(K, e, strength){
   return(list(A=A, dirPrior=dirPrior))
 }
 
-getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9999999, e.sameState = 10, strength = 10000000, includeHOMD = FALSE){
+getDefaultParameters <- function(x, maxCN = 5, ct.sc = c(1,3), n_0 = 0.5, ploidy_0 = 2, 
+                                 normal2IgnoreSC = 0.9, e = 0.9999999, e.subclone = 0.1,
+                                 e.sameState = 50, strength = 10000000, 
+                                 includeHOMD = FALSE, likModel = "t"){
   if (includeHOMD){
     ct <- 0:maxCN
   }else{
     ct <- 1:maxCN
   }
+  #ct <- c(ct, maxCN * 5) ## add additional CN state to catch extreme HLAMP
 	param <- list(
 		strength = strength, e = e,
 		ct = c(ct, ct.sc),
 		ct.sc.status = c(rep(FALSE, length(ct)), rep(TRUE, length(ct.sc))),
-		phi_0 = 2, alphaPhi = 4, betaPhi = 1.5,
-		n_0 = 0.5, alphaN = 2, betaN = 2,
+		phi_0 = ploidy_0, alphaPhi = 4, betaPhi = 0.75,
+		n_0 = n_0, alphaN = 1, betaN = 1,
 		sp_0 = 0.5, alphaSp = 2, betaSp = 2,
 		lambda = as.matrix(rep(100, length(ct)+length(ct.sc)), ncol=1),
 		nu = 2.1,
 		kappa = rep(75, length(ct)), 
-		alphaLambda = 5
+		alphaLambda = 2,
+		betaVar = 2,
+		likModel = likModel
 	)
 	K <- length(param$ct)
-  ## initialize hyperparameters for precision using observed data ##
-	if (!is.null(dim(x))){ # multiple samples (columns)
-    param$numberSamples <- ncol(x)
-    #betaLambdaVal <- ((apply(x, 2, function(x){ sd(diff(x), na.rm=TRUE) }) / sqrt(length(param$ct))) ^ 2)
-    betaLambdaVal <- ((apply(x, 2, sd, na.rm = TRUE) / sqrt(length(param$ct))) ^ 2)   
-	}else{ # only 1 sample
-	  param$numberSamples <- 1
-	  betaLambdaVal <- ((sd(x, na.rm = TRUE) / sqrt(length(param$ct))) ^ 2)
+	S <- ncol(x)
+	KS <- K ^ S
+	
+	if (grepl("gauss", likModel, ignore.case = TRUE)){
+	  likModel <- "Gaussian"
+	  param$likModel <- likModel
 	}
-	param$betaLambda <- matrix(betaLambdaVal, ncol = param$numberSamples, nrow = length(param$ct), byrow = TRUE)
+  ## initialize hyperparameters for precision using observed data ##
+	# multiple or single samples (columns)
+  param$numberSamples <- S
+  #betaLambdaVal <- ((apply(x, 2, function(x){ sd(diff(x), na.rm=TRUE) }) / sqrt(length(param$ct))) ^ 2)
+  
+  logR.var <- ( apply(x, 2, sd, na.rm = TRUE) / sqrt(K) ) ^ 2
+  #logR.var <- ( apply(x, 2, var, na.rm = TRUE) / sqrt(K) ) 
+	
+	#param$betaLambda <- betaLambdaVal #t(replicate(K, betaLambdaVal))
+	param$betaLambda <- matrix(logR.var, ncol = param$numberSamples, nrow = K, byrow = TRUE)
   param$alphaLambda <- rep(param$alphaLambda, K)
   
-	# increase prior precision for -1, 0, 1 copies at ploidy
-	#param$lambda[param$ct %in% c(1,2,3)] <- 1000 # HETD, NEUT, GAIN
-	#param$lambda[param$ct == 4] <- 100 
-	#param$lambda[which.max(param$ct)] <- 50 #highest CN
-	#param$lambda[param$ct == 0] <- 1 #HOMD
-	S <- param$numberSamples
-	logR.var <- 1 / ((apply(x, 2, sd, na.rm = TRUE) / sqrt(length(param$ct))) ^ 2)
-	if (!is.null(dim(x))){ # multiple samples (columns)
-		param$lambda <- matrix(logR.var, nrow=K, ncol=S, byrow=T, dimnames=list(c(),colnames(x)))
-	}else{ # only 1 sample    
+	#logR.var <- 1 / ((apply(x, 2, sd, na.rm = TRUE) / sqrt(K)) ^ 2)
+	logR.lambda <- 1 / logR.var
+  if (ncol(x) > 1){ # multiple samples (columns)
+		param$lambda <- matrix(logR.lambda, nrow=K, ncol=S, byrow=T, dimnames=list(c(),colnames(x)))
+	}else{ # only 1 sample and using student's-t likelihood model
 		#logR.var <- 1 / ((sd(x, na.rm = TRUE) / sqrt(length(param$ct))) ^ 2)
-    param$lambda <- matrix(logR.var, length(param$ct))
-    param$lambda[param$ct %in% c(2)] <- logR.var 
-    param$lambda[param$ct %in% c(1,3)] <- logR.var 
-    param$lambda[param$ct >= 4] <- logR.var / 5
-    param$lambda[param$ct == max(param$ct)] <- logR.var / 15
-    param$lambda[param$ct.sc.status] <- logR.var / 10
+    param$lambda <- matrix(logR.lambda, length(param$ct))
+    param$lambda[param$ct %in% c(2)] <- logR.lambda * 10
+    param$lambda[param$ct %in% c(1,3)] <- logR.lambda 
+    param$lambda[param$ct >= 4] <- logR.lambda
+    param$lambda[param$ct == max(param$ct)] <- logR.lambda / 15
+    param$lambda[param$ct.sc.status] <- logR.lambda * 2
+    param$betaLambda <- param$alphaLambda / param$lambda
+    #param$betaLambda[param$ct %in% c(2)] <- param$betaLambda[param$ct %in% c(2)] 
+    #param$betaLambda[param$ct.sc.status] <- param$betaLambda[param$ct.sc.status] 
   }
+
+  ## initialize hyperparameters and variance parameters for Gaussians
+  if (likModel == "Gaussian"){
+    param$psi <- diag(param$numberSamples) # parameter for inverse-wishart prior
+    param$nu
+    if (numSamples > 1){
+      covar <- getCovarianceMatrix(x)
+      param$cor <- covar$cor
+      param$covar <- covar$covar
+      param$sw <- rep(1, param$numberSamples)
+    }else{
+      param$cor <- var(x)
+      param$covar <- 1
+      param$sw <- 1
+    }
+    #param$var <- t(replicate(K, diag(covar$covar)))
+    #param$var <- matrix(apply(x, 2, var, na.rm=T), ncol = S, nrow = K, byrow = TRUE)
+    param$betaVar <- rep(param$betaVar, S)
+    #alphaVar <- 1 / (apply(x, 2, var, na.rm = TRUE) / sqrt(K) ^ 2)
+    #alphaVar <- 1 / logR.var  # same as betaLambda
+    param$alphaVar <- matrix(1 / logR.var, ncol = S, nrow = K, byrow = TRUE)
+    param$var <- matrix(logR.var, ncol = S, nrow = K, byrow = TRUE)
+    param$var[param$ct %in% c(2)] <- logR.var / 10
+    param$var[param$ct %in% c(1,3)] <- logR.var 
+    param$var[param$ct >= 4] <- logR.var
+    param$var[param$ct == max(param$ct)] <- logR.var * 15
+    param$var[param$ct.sc.status] <- logR.var * 2
+    param$alphaVar <- param$betaVar / param$var
+    #param$alphaVar[param$ct.sc.status] <- param$alphaVar[param$ct.sc.status] * 2
+
+    ### custom settings
+    # highest CN state has higher variance to capture outliers
+    #param$alphaVar[param$jointCNstates == max(param$ct)] <- param$alphaVar[param$jointCNstates == max(param$ct)] * 10
+    # subclonal states ahve higher variance to capture more subclonal range
+    #param$alphaVar[param$ct.sc.status, 1] <- param$alphaVar[param$ct.sc.status, 1] * 2
+  }
+
   # define joint copy number states #
+	param$jointStates <- expand.grid(rep(list(1:length(param$ct)), S))
   param$jointCNstates <- expand.grid(rep(list(param$ct), S))
   param$jointSCstatus <- expand.grid(rep(list(param$ct.sc.status), S))
+  #KS <- nrow(param$jointCNstates)
+  #param$covar <- replicate(KS, covar$covar)
+	
   colnames(param$jointCNstates) <- paste0("Sample.", 1:param$numberSamples)
   colnames(param$jointSCstatus) <- paste0("Sample.", 1:param$numberSamples)
   
 	# Initialize transition matrix to the prior
 	txn <- getTransitionMatrix(K ^ S, e, strength)
   ## set higher transition probs for same CN states across samples ##
-  # joint states where at least "tol" fraction of samples with the same CN state
+  # joint states where at least "e.sameState" fraction of samples with the same CN state
 	#apply(param$jointCNstates, 1, function(x){ sum(duplicated(as.numeric(x))) > 0 })
   cnStateDiff <- apply(param$jointCNstates, 1, function(x){ (abs(max(x) - min(x)))})
   if (e.sameState > 0 & S > 1){
 		txn$A[, cnStateDiff == 0] <- txn$A[, cnStateDiff == 0] * e.sameState * K 
-		txn$A[, cnStateDiff >= 3] <- txn$A[, cnStateDiff >=3]  / e.sameState / K
+		#txn$A[, cnStateDiff >= 3] <- txn$A[, cnStateDiff >=3]  / e.sameState / K
 	}
-  for (i in 1:nrow(txn$A)){
-    for (j in 1:ncol(txn$A)){
-      if (i == j){
-        txn$A[i, j] <- e
-      }
-    }
+  param$kappa <- rep(75, K ^ S)
+  param$kappa[cnStateDiff == 0] <- param$kappa[cnStateDiff == 0] + 125
+  param$kappa[cnStateDiff >=3] <- param$kappa[cnStateDiff >=3] - 50
+  param$kappa[which(rowSums(param$jointCNstates==2) == S)] <- 800
+  # penalize homozygous deletion state
+  if (includeHOMD){
+    K <- length(param$ct)
+    txn$A[1, 2:K] <- txn$A[1, 2:K] * 1e-5; 
+    txn$A[2:K, 1] <- txn$A[2:K, 1] * 1e-5;
+    txn$A[1, 1] <- txn$A[1, 1] * 1e-5
+  }
+  # penalize transitions into subclonal states
+  #ind.bothSC <- rowSums(param$jointSCstatus) == S
+  if (e.subclone > 1){
+    ind.SC <- rowSums(param$jointSCstatus) > 0
+    txn$A[, ind.SC] <- txn$A[, ind.SC] / (e.subclone * K)
+    # penalize transitions into outlier maxCN state
+    ind.maxCN <- rowSums(param$jointCNstates == max(param$ct)) > 0
+    #txn$A[, ind.maxCN] <- txn$A[, ind.maxCN] / (2 * K)
   }
   txn$A <- normalize(txn$A)
 	param$A <- txn$A
-	param$dirPrior <- txn$A * strength[1] 
-  param$A[, param$ct.sc.status] <- param$A[, param$ct.sc.status] / 10
-  param$A <- normalize(param$A)
-  param$dirPrior[, param$ct.sc.status] <- param$dirPrior[, param$ct.sc.status] / 10
-  
-  if (includeHOMD){
-    K <- length(param$ct)
-    param$A[1, 2:K] <- param$A[1, 2:K] * 1e-5; param$A[2:K, 1] <- param$A[2:K, 1] * 1e-5;
-    param$A[1, 1] <- param$A[1, 1] * 1e-5
-    param$A <- normalize(param$A); param$dirPrior <- param$A * param$strength
-  }
+  param$A_prior <- param$A
+  param$dirPrior <- param$A * strength[1] 
 
-  param$kappa <- rep(75, K ^ S)
-  param$kappa[cnStateDiff == 0] <- param$kappa[cnStateDiff == 0] + 125
-	param$kappa[cnStateDiff >=3] <- param$kappa[cnStateDiff >=3] - 50
-	param$kappa[which(rowSums(param$jointCNstates==2) == S)] <- 800
+  # ignore subclones for sample with n >= normal2IgnoreSC
+  indKS <- 1:nrow(param$jointSCstatus) # use all joint states
+  indK <- 1:length(param$ct.sc.status)
+  if (sum(n_0 >= normal2IgnoreSC) > 0){
+    for (i in which(n_0 >= normal2IgnoreSC)){
+      # keep states excluding subclones for samples with n >= normal2IgnoreSC
+      indKS <- intersect(indKS, which(!param$jointSCstatus[, i]))
+      indK <- intersect(indK, which(param$ct.sc.status))
+      param$lambda[indK, i] <- NaN
+      param$betaLambda[indK, i] <- NaN
+      if (likModel == "Gaussian"){
+        param$var[indK, i] <- NaN
+      }    
+    }
+
+    param$kappa <- param$kappa[indKS]
+    param$alphaVar <- param$alphaVar[indK, , drop = FALSE]
+    param$jointStates <- param$jointStates[indKS, , drop = FALSE]
+    param$jointCNstates <- param$jointCNstates[indKS, , drop = FALSE]
+    param$jointSCstatus <- param$jointSCstatus[indKS, , drop = FALSE]
+    param$A <- normalize(param$A[indKS, indKS])
+    param$A_prior <- param$A
+    param$dirPrior <- param$A * strength[1]
+  } 
   
   return(param)
 }
