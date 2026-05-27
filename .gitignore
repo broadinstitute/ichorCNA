@@ -1,1 +1,10 @@
 .DS_Store
+
+# Sample lists containing internal S3 paths — never commit these
+*_samples.txt
+
+# CRAM/BAM files and indices
+*.cram
+*.bam
+*.crai
+*.bai
