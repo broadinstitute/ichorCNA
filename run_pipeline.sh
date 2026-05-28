@@ -44,6 +44,12 @@ CONDA_ENV=ichorCNA
 CHRS="chr1 chr2 chr3 chr4 chr5 chr6 chr7 chr8 chr9 chr10 chr11 chr12 chr13 chr14 chr15 chr16 chr17 chr18 chr19 chr20 chr21 chr22 chrX"
 CHRS_CSV="${CHRS// /,}"  # comma-separated list
 QUAL=20
+NCPU=$(nproc 2>/dev/null || echo 4)
+# Parallelize across chromosomes — S3 single-stream bandwidth is the bottleneck,
+# so fan out one samtools view per chromosome (each opens its own S3 connection)
+# and combine the per-chrom WIGs at the end. -@ per samtools is small because
+# the work is I/O-bound, not CPU-bound.
+SAMTOOLS_THREADS=2
 
 BAM_TO_WIG=${REPO}/scripts/bam_to_wig.py
 
@@ -97,15 +103,41 @@ while IFS= read -r CRAM_S3 || [[ -n "${CRAM_S3}" ]]; do
     mkdir -p "${SAMPLE_OUTDIR}"
     echo "[$(date '+%F %T')] ── ${SAMPLE}" | tee -a "${LOG}"
 
-    # ── Step 1: CRAM → WIG via streaming pipe ───────────────────────────────
-    # samtools uses the .crai index on S3 to fetch only the requested chromosomes,
-    # avoiding downloading the entire ~600 GB CRAM.
+    # ── Step 1: CRAM → WIG via per-chromosome streaming pipes ───────────────
+    # Bottleneck is S3 single-stream bandwidth, not CPU. Fan out one
+    # samtools view per chromosome (each = its own S3 connection) so total
+    # wall is ~max(per-chrom time) instead of sum. Each pipe writes a
+    # per-chrom partial WIG; we cat them in genome order at the end.
     # -s downsamples reads (e.g. 0.01 = keep 1% → 100x becomes ~1x).
-    # bam_to_wig.py reads SAM text from stdin — no BAM index required.
     SUBSAMPLE_FLAG=$(awk -v f="${DOWNSAMPLE_FRAC}" 'BEGIN{if(f+0<1.0) print "-s"" "f}')
-    samtools view ${SUBSAMPLE_FLAG} -T "${REF}" "${CRAM_S3}" ${CHRS} 2>> "${LOG}" \
-        | ${PYTHON} -u "${BAM_TO_WIG}" -w "${BIN_SIZE}" -q "${QUAL}" -c "${CHRS_CSV}" \
-        > "${WIG}" 2>> "${LOG}"
+    PARTIAL_DIR=${OUTDIR}/readDepth/${SAMPLE}.parts
+    mkdir -p "${PARTIAL_DIR}"
+    rm -f "${PARTIAL_DIR}"/*.wig "${PARTIAL_DIR}"/*.log
+
+    echo "[$(date '+%F %T')]   launching ${SAMTOOLS_THREADS}-thread samtools per chrom (parallel)" | tee -a "${LOG}"
+    for CHR in ${CHRS}; do
+        (
+            samtools view -@ "${SAMTOOLS_THREADS}" ${SUBSAMPLE_FLAG} -T "${REF}" "${CRAM_S3}" "${CHR}" 2>> "${PARTIAL_DIR}/${CHR}.log" \
+                | ${PYTHON} -u "${BAM_TO_WIG}" -w "${BIN_SIZE}" -q "${QUAL}" -c "${CHR}" \
+                > "${PARTIAL_DIR}/${CHR}.wig" 2>> "${PARTIAL_DIR}/${CHR}.log"
+        ) &
+    done
+    wait
+
+    : > "${WIG}"
+    for CHR in ${CHRS}; do
+        if [[ -s "${PARTIAL_DIR}/${CHR}.wig" ]]; then
+            cat "${PARTIAL_DIR}/${CHR}.wig" >> "${WIG}"
+        else
+            echo "WARNING: empty WIG for ${CHR} — see ${PARTIAL_DIR}/${CHR}.log" | tee -a "${LOG}"
+        fi
+    done
+    for CHR in ${CHRS}; do
+        if [[ -s "${PARTIAL_DIR}/${CHR}.log" ]]; then
+            echo "─── ${CHR} ───" >> "${LOG}"
+            cat "${PARTIAL_DIR}/${CHR}.log" >> "${LOG}"
+        fi
+    done
 
     echo "[$(date '+%F %T')]   WIG written: ${WIG}" | tee -a "${LOG}"
 
