@@ -26,15 +26,31 @@ def parse_args():
     p.add_argument("-c", "--chromosomes", default=None,
                    help="Comma-separated list of chromosomes to output. "
                         "Others are still counted but not emitted. "
-                        "If omitted, all chromosomes in the header are output.")
+                        "If omitted, all chromosomes seen in the SAM header are output.")
+    p.add_argument("--fai", default=None,
+                   help="Path to reference .fai. If given, chrom lengths come "
+                        "from there (preferred — works when samtools is run "
+                        "without -h and emits no @SQ lines).")
     return p.parse_args()
+
+
+def load_fai(path):
+    lengths = OrderedDict()
+    with open(path) as f:
+        for line in f:
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) >= 2:
+                lengths[parts[0]] = int(parts[1])
+    return lengths
 
 
 def main():
     args = parse_args()
     keep_chrs = set(args.chromosomes.split(",")) if args.chromosomes else None
 
-    chr_lengths = OrderedDict()   # chromosome → length (from SAM header)
+    # chrom → length. Preload from .fai if given (works even when samtools is
+    # invoked without -h, which is the case in the per-chrom streaming path).
+    chr_lengths = load_fai(args.fai) if args.fai else OrderedDict()
     counts = defaultdict(int)     # (chrom, bin_start) → read count
 
     # SAM flag bits to skip: unmapped, secondary, QC fail, duplicate, supplementary
@@ -114,22 +130,34 @@ def main():
         f"\n  Done: {total_read/1e6:.1f}M reads in {elapsed:.0f}s "
         f"({total_read/elapsed/1e6:.2f}M reads/s) | {kept} bins populated\n"
     )
-    # Iterate chromosomes in header order so ichorCNA gets a consistent sort.
+    # Emit fixedStep WIG to match the format of the bundled GC/map reference
+    # WIGs that ichorCNA expects (HMMcopy::wigsToRangedData). One value per
+    # bin from start=1 to chrom_length, zero-filled where no reads landed.
     emit_chrs = [c for c in chr_lengths if keep_chrs is None or c in keep_chrs]
-    # Also include any chromosomes seen in reads but not in the header
+    seen = set(emit_chrs)
+    # Append any chrom seen in reads but missing from chr_lengths (rare — only
+    # when no .fai was given). Use a set to avoid duplicates.
+    seen_in_counts = set()
     for chrom, _ in counts:
-        if chrom not in chr_lengths:
+        if chrom not in seen and chrom not in seen_in_counts:
+            seen_in_counts.add(chrom)
             emit_chrs.append(chrom)
 
     for chrom in emit_chrs:
         length = chr_lengths.get(chrom, 0)
-        # Collect all bins for this chromosome and sort them
-        bins = sorted(b for (c, b) in counts if c == chrom)
-        if not bins:
-            continue
-        sys.stdout.write(f"variableStep chrom={chrom} span={args.window}\n")
-        for bin_start in bins:
-            sys.stdout.write(f"{bin_start}\t{counts[(chrom, bin_start)]}\n")
+        if length <= 0:
+            # No length info → fall back to max observed bin
+            chrom_bins = [b for (c, b) in counts if c == chrom]
+            if not chrom_bins:
+                continue
+            length = max(chrom_bins) + args.window
+        sys.stdout.write(
+            f"fixedStep chrom={chrom} start=1 step={args.window} span={args.window}\n"
+        )
+        n_bins = (length + args.window - 1) // args.window
+        for i in range(n_bins):
+            bin_start = i * args.window + 1
+            sys.stdout.write(f"{counts.get((chrom, bin_start), 0)}\n")
 
 
 if __name__ == "__main__":

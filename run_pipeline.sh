@@ -118,7 +118,7 @@ while IFS= read -r CRAM_S3 || [[ -n "${CRAM_S3}" ]]; do
     for CHR in ${CHRS}; do
         (
             samtools view -@ "${SAMTOOLS_THREADS}" ${SUBSAMPLE_FLAG} -T "${REF}" "${CRAM_S3}" "${CHR}" 2>> "${PARTIAL_DIR}/${CHR}.log" \
-                | ${PYTHON} -u "${BAM_TO_WIG}" -w "${BIN_SIZE}" -q "${QUAL}" -c "${CHR}" \
+                | ${PYTHON} -u "${BAM_TO_WIG}" -w "${BIN_SIZE}" -q "${QUAL}" -c "${CHR}" --fai "${REF}.fai" \
                 > "${PARTIAL_DIR}/${CHR}.wig" 2>> "${PARTIAL_DIR}/${CHR}.log"
         ) &
     done
